@@ -52,7 +52,7 @@ def pdf_to_images(pdf: bytes) -> list[Image]:
     return images
 
 
-async def process_pdf(pdf: bytes):
+def process_pdf(pdf: bytes):
     """
     Process a pdf
 
