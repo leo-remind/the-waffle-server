@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from rich.logging import RichHandler
 
 from rag import query_rag
+from table import pdf_to_images
 
 load_dotenv()
 
@@ -63,6 +64,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             file=file_content,
             file_options={"content-type": "application/pdf"},
         )
+
+        pdf_to_images(file_content)
 
         return JSONResponse(
             status_code=200,
