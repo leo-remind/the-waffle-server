@@ -8,12 +8,16 @@ from anthropic import Anthropic
 from PIL import Image
 from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 
+from constants import LOAD_MODEL
+
 logger = getLogger(__file__)
 
-feature_extractor = DetrFeatureExtractor()
-detection_model = TableTransformerForObjectDetection.from_pretrained(
-    "microsoft/table-transformer-detection"
-)
+if LOAD_MODEL:
+    feature_extractor = DetrFeatureExtractor()
+    detection_model = TableTransformerForObjectDetection.from_pretrained(
+        "microsoft/table-transformer-detection"
+    )
+
 anthropic_client = Anthropic(api_key="some-api-key")
 logger.debug("initialized feature extractor, detection model and anthropic client")
 
