@@ -22,4 +22,5 @@ dependencies = [
     "supabase>=2.14.0",
     "timm>=1.0.15",
     "pinecone>=6.0.2",
+    "psycopg2-binary>=2.9.10",
 ]
