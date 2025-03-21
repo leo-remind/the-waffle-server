@@ -20,4 +20,5 @@ dependencies = [
     "openai>=1.68.2",
     "torch>=2.6.0",
     "timm>=1.0.15",
+    "supabase>=2.14.0",
 ]

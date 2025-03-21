@@ -1,13 +1,13 @@
 import logging
 import os
-from typing import Optional
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from rich.logging import RichHandler
+
 import supabase
 from dotenv import load_dotenv
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from rich.logging import RichHandler
+
 from rag import query_rag
 
 load_dotenv()
@@ -40,45 +40,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/query/{query}")
 async def query_rag_endpoint(query: str) -> StreamingResponse:
     return StreamingResponse(query_rag(query), media_type="text/event-stream")
+
 
 @app.post("/upload/pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     try:
         if not file.content_type == "application/pdf":
-            raise HTTPException(
-                status_code=400, 
-                detail="Only PDF files are allowed"
-            )
-        
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
         file_content = await file.read()
-        
+
         filename = file.filename
-        
+
         logger.info(f"Uploading file: {filename} to bucket: {bucket_name}")
-        
+
         response = supabase_client.storage.from_(bucket_name).upload(
             path=filename,
             file=file_content,
-            file_options={"content-type": "application/pdf"}
+            file_options={"content-type": "application/pdf"},
         )
-        
+
         return JSONResponse(
             status_code=200,
-            content={
-                "message": "File uploaded successfully",
-                "filename": filename
-            }
+            content={"message": "File uploaded successfully", "filename": filename},
         )
-        
+
     except supabase.StorageException as e:
         logger.error(f"Supabase storage error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Storage error: {str(e)}")
     except Exception as e:
         logger.error(f"Error uploading file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
