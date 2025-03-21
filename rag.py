@@ -1,17 +1,20 @@
-import os
-import asyncio
 import logging
+import os
 from typing import List
+
 import psycopg2
-from rich.pretty import pretty_repr
-
 from dotenv import load_dotenv
-from pinecone import Pinecone
 from langchain_openai import ChatOpenAI
-from supabase import create_client, Client
+from pinecone import Pinecone
+from rich.pretty import pretty_repr
+from supabase import Client, create_client
 
-from prompts import NORMAL_RESPONSE_PROMPT, SQL_GENERATION_PROMPT, QUERY_AUGMENTATION_PROMPT, VERBOSE_RESPONSE_PROMPT
 from constants import RETRIEVAL_THRESHOLD
+from prompts import (
+    NORMAL_RESPONSE_PROMPT,
+    QUERY_AUGMENTATION_PROMPT,
+    SQL_GENERATION_PROMPT,
+)
 
 load_dotenv()
 log = logging.getLogger("RAG")
@@ -26,12 +29,12 @@ pg_host = os.getenv("PG_HOST")
 pg_port = os.getenv("PG_PORT")
 pg_dbname = os.getenv("PG_DBNAME")
 pg_conn = psycopg2.connect(
-        host=pg_host,
-        database=pg_dbname,
-        user=pg_user,
-        password=pg_password,
-        port=pg_port,
-    )
+    host=pg_host,
+    database=pg_dbname,
+    user=pg_user,
+    password=pg_password,
+    port=pg_port,
+)
 
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 chatgpt_4o = ChatOpenAI(model="gpt-4o")
@@ -40,7 +43,7 @@ chatgpt_o3_mini = ChatOpenAI(model="o3-mini")
 stream_fmt = lambda a: f"data: {a}\n\n"
 
 
-async def query_rag(og_query: str, verbose: bool=False, graph: bool=False):
+async def query_rag(og_query: str, verbose: bool = False, graph: bool = False):
     yield stream_fmt("Finding most relevant tables")
     query = query_augmentation(og_query)
     tables = find_k_relevant_tables(query)
@@ -52,7 +55,9 @@ async def query_rag(og_query: str, verbose: bool=False, graph: bool=False):
     yield stream_fmt(str(sql_query))
     results = execute_sql_query(sql_query)
     yield stream_fmt("Values collated, generating response ...")
-    response = generate_response(og_query, results, sql_query, schemas, verbose=verbose, graph=graph)
+    response = generate_response(
+        og_query, results, sql_query, schemas, verbose=verbose, graph=graph
+    )
     yield stream_fmt(response)
     log.info(response)
 
@@ -102,17 +107,15 @@ def generate_sql_query(query: str, schemas: List, llm: ChatOpenAI = chatgpt_4o):
     chain = SQL_GENERATION_PROMPT | llm
     log.info(f"query: {query}")
 
-    response = chain.invoke({
-        "query": query,
-        "schema" : "\n\n".join(schemas)
-    })
+    response = chain.invoke({"query": query, "schema": "\n\n".join(schemas)})
     log.info(f"generated_response: {response.content}")
 
     return response.content
 
+
 def execute_sql_query(sql_query: str):
     global pg_conn
-    
+
     sql_query = sql_query.strip("`").removeprefix("sql")
     cursor = pg_conn.cursor()
     cursor.execute(sql_query)
@@ -121,19 +124,30 @@ def execute_sql_query(sql_query: str):
 
     cursor.close()
     log.info(f"Executed query, results: {pretty_repr(results)}")
-    
+
     return results
 
-def generate_response(query: str, results: any, sql_query: str,schemas:List[str],  llm : ChatOpenAI = chatgpt_4o, verbose: bool = False, graph: bool = False):
-    prompt =  NORMAL_RESPONSE_PROMPT # VERBOSE_RESPONSE_PROMPT if verbose else NORMAL_RESPONSE_PROMPT
+
+def generate_response(
+    query: str,
+    results: any,
+    sql_query: str,
+    schemas: List[str],
+    llm: ChatOpenAI = chatgpt_4o,
+    verbose: bool = False,
+    graph: bool = False,
+):
+    prompt = NORMAL_RESPONSE_PROMPT  # VERBOSE_RESPONSE_PROMPT if verbose else NORMAL_RESPONSE_PROMPT
     chain = prompt | llm
 
-    response = chain.invoke({
-        "query" : query,
-        "result" : str(results),
-        "sql_query" : sql_query,
-        "schema" : "\n\n".join(schemas)
-    })
+    response = chain.invoke(
+        {
+            "query": query,
+            "result": str(results),
+            "sql_query": sql_query,
+            "schema": "\n\n".join(schemas),
+        }
+    )
 
     return response.content
 

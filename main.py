@@ -1,7 +1,8 @@
 import logging
+
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from rich.logging import RichHandler
 
 from rag import query_rag

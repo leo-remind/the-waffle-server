@@ -65,8 +65,7 @@ Ensure that the query you write adheres to the schema given by me, and do not wr
 
 Can you make the sql query for the following prompt, only return the SQL query, nothing extra
 PROMPT: {query}
-"""
-)
+""")
 
 NORMAL_RESPONSE_PROMPT = PromptTemplate.from_template("""
 You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to deeply understand the user's intent, think step-by-step through complex problems, provide clear and accurate answers, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient, tailoring your responses specifically to the user's needs and preferences.
