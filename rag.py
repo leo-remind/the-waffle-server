@@ -1,7 +1,9 @@
 import logging
 import os
+from asyncio import sleep
 from typing import List
 
+from fastapi import WebSocket
 import psycopg2
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
@@ -43,22 +45,25 @@ chatgpt_o3_mini = ChatOpenAI(model="o3-mini")
 stream_fmt = lambda a: f"data: {a}\n\n"
 
 
-async def query_rag(og_query: str, verbose: bool = False, graph: bool = False):
-    yield stream_fmt("Finding most relevant tables")
+async def query_rag(websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False):
+    await websocket.send_text("Finding most relevant tables\n\n")
+    sleep(3)
     query = query_augmentation(og_query)
     tables = find_k_relevant_tables(query)
-    yield stream_fmt(f"Generating response from {len(tables)} relevant table/s")
-    yield stream_fmt(str(tables))
+    await websocket.send_text(f"Generating response from {len(tables)} relevant table/s\n\n")
+    await sleep(0.1)
     schemas = get_table_schemas(tables)
     sql_query = generate_sql_query(query, schemas)
-    yield stream_fmt(f"Querying SQL Database with query")
-    yield stream_fmt(str(sql_query))
+    await websocket.send_text(f"Querying SQL Database with query\n\n")
+    await sleep(0.1)
     results = execute_sql_query(sql_query)
-    yield stream_fmt("Values collated, generating response ...")
+    await websocket.send_text("Values collated, generating response ...")
+    await sleep(0.1)
     response = generate_response(
         og_query, results, sql_query, schemas, verbose=verbose, graph=graph
     )
-    yield stream_fmt(response)
+    await websocket.send_text(response)
+    await sleep(0.1)
     log.info(response)
 
 

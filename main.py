@@ -1,9 +1,10 @@
 import logging
 import os
+import json
 
 import supabase
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from rich.logging import RichHandler
@@ -35,16 +36,18 @@ supabase_client = supabase.create_client(supabase_url, supabase_key)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=["http://localhost:3000"],  # In production, specify your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-@app.get("/query/{query}")
-async def query_rag_endpoint(query: str) -> StreamingResponse:
-    return StreamingResponse(query_rag(query), media_type="text/event-stream")
+@app.websocket("/query/ws")
+async def query_rag_endpoint(websocket: WebSocket) -> StreamingResponse:
+    await websocket.accept()
+    query_data = json.loads(await websocket.receive_text())
+    await query_rag(websocket,query_data["query"], verbose=query_data["verbose"], graph=query_data["graph"])
 
 
 @app.post("/upload/pdf")
