@@ -226,6 +226,8 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             f"Table: '{table['title']}', Year Range: ({table['min_year']}-{table['max_year']})"
         )
 
+        index = pinecone_client.Index("the-waffle")
+
         try:
             random_string = get_20_random_string()
 
@@ -277,7 +279,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                 ),
             )
 
-            pc_upsert.append(
+            index.upsert_records("", [
                 {
                     "id": random_string,
                     "text": table["title"],
@@ -287,7 +289,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                     "supabase_table_name": random_string,
                     "pdf_name": response["pdf_name"],
                 }
-            )
+            ])
 
         except (Exception, psycopg2.DatabaseError) as error:
             logger.info(f"ERROR: {error}")
@@ -297,13 +299,6 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
         finally:
             cur.close()
             supabase_client.commit()
-    try:
-        index = pinecone_client.Index("the-waffle")
-
-        index.upsert_records("", pc_upsert)
-    except Exception as e:
-        logger.info(f"Failed to upsert to Pinecone: {e}")
-        raise e
 
 
 def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client):
@@ -317,3 +312,6 @@ def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_cli
                 result = future.result()
             except Exception as e:
                 print(f"Task {futures[future]} generated an exception: {e}")
+                for x in futures:
+                    x.cancel()
+                raise e

@@ -116,6 +116,10 @@ async def upload_pdf(file: UploadFile = File(...)):
             logger.info(f"File {filename} processed successfully")
         except Exception as e:
             logger.error(f"Error processing PDF: {str(e)}")
+            respoe = supabase_client.storage.from_(bucket_name).remove(
+                [response.path]
+            )
+
             return JSONResponse(
                 status_code=500, content={"error": f"Error processing PDF: {e}"}
             )
