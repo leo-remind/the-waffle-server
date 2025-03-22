@@ -268,6 +268,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                     "min_year": table["min_year"],
                     "max_year": table["max_year"],
                     "supabase_table_name": random_string,
+                    "pdf_name": response["pdf_name"],
                 }
             )
 
