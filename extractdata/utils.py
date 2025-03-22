@@ -213,6 +213,7 @@ def comment_the_schema(schema, df):
 
     return schema
 
+
 def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_client):
     table_data = response["tables"]
     pc_upsert = []

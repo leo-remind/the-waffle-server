@@ -68,20 +68,22 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         file_content = await file.read()
         filename = file.filename
-        
+
         # Check if file with the same name already exists in the bucket
         try:
             # List files in the bucket
             file_list = supabase_client.storage.from_(bucket_name).list()
-            
+
             # Check if the filename already exists
             file_exists = any(item["name"] == filename for item in file_list)
-            
+
             if file_exists:
                 logger.info(f"File {filename} already exists in bucket")
                 # Get the public URL for the existing file
-                url = supabase_client.storage.from_(bucket_name).get_public_url(filename)
-                
+                url = supabase_client.storage.from_(bucket_name).get_public_url(
+                    filename
+                )
+
                 # Return a successful response since we have the file
                 return JSONResponse(
                     status_code=200,
@@ -89,14 +91,14 @@ async def upload_pdf(file: UploadFile = File(...)):
                         "message": f"File '{filename}' already exists and is ready to use",
                         "filename": filename,
                         "url": url,
-                        "exists": True
-                    }
+                        "exists": True,
+                    },
                 )
-                
+
         except Exception as e:
             logger.error(f"Error checking if file exists: {str(e)}")
             # Continue with upload if we couldn't check (fail open)
-        
+
         # If we got here, the file doesn't exist or we couldn't check
         logger.info(f"Uploading new file: {filename} to bucket: {bucket_name}")
 
@@ -107,7 +109,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         )
 
         url = supabase_client.storage.from_(bucket_name).get_public_url(response.path)
-        
+
         # TODO: HAHHAHAHA TIME TO PROCESS THE PDF BUT I DONT WANT TO CANCER MY CLAUDE
         try:
             await process_pdf(file_content, filename, url)
@@ -121,11 +123,11 @@ async def upload_pdf(file: UploadFile = File(...)):
         return JSONResponse(
             status_code=200,
             content={
-                "message": f"File '{filename}' uploaded and processed successfully", 
+                "message": f"File '{filename}' uploaded and processed successfully",
                 "filename": filename,
                 "url": url,
-                "exists": False
-            }
+                "exists": False,
+            },
         )
 
     except supabase.StorageException as e:

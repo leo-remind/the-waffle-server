@@ -17,6 +17,7 @@ from supabase import Client, create_client
 
 from constants import RETRIEVAL_THRESHOLD
 from prompts import (
+    GRAPH_GENERATION_PROMPT,
     NORMAL_RESPONSE_PROMPT,
     QUERY_AUGMENTATION_PROMPT,
     SQL_GENERATION_PROMPT,
@@ -82,14 +83,6 @@ async def query_rag(
             )
         )
 
-    await websocket.send_text(
-        json.dumps(
-            {
-                "isStreaming": True,
-                "message": f"Generating response from {len(tables)} relevant table/s\n\n",
-            }
-        )
-    )
     await sleep(0.1)
     schemas = get_table_schemas(tables)
     schema_str = "\n\n".join(
@@ -99,9 +92,28 @@ async def query_rag(
         ]
     )
     sql_reasoning, sql_query = generate_sql_query(query, schema_str)
+
+    model_name_match = MODEL_NAME_RE.match(sql_query)
+    if model_name_match:
+        primary_table = model_name_match.groups()[0]
+    else:
+        primary_table = ""
+    ############################### TABLES & SQL Query ####################################################
     await websocket.send_text(
-        json.dumps({"isStreaming": True, "message": "Querying SQL Database with query"})
+        json.dumps(
+            {
+                "isStreaming": True,
+                "message": "Querying SQL Database with query",
+                "sqlQuery": sql_query,
+                "sqlReasoning": sql_reasoning,
+                "primaryTable": primary_table,
+                "tables": [
+                    get_table_as_json(table["supabase_table_name"]) for table in tables
+                ],
+            }
+        )
     )
+    ##############################################################################################
     await sleep(0.1)
     results = execute_sql_query(sql_query)
 
@@ -114,21 +126,22 @@ async def query_rag(
     response = generate_response(
         og_query, results, sql_reasoning, verbose=verbose, graph=graph
     )
-    model_name_match = MODEL_NAME_RE.match(sql_query)
-    if model_name_match:
-        primary_table = model_name_match.groups()[0]
-    else:
-        primary_table = ""
+
+    ############################### ChartJS Graph ####################################################
+    await websocket.send_text(
+        json.dumps({"isStreaming": True, "message": "Creating graph for your use-case"})
+    )
+
+    graph_data(query, sql_reasoning, schema_str)
+
+    await sleep(0.1)
+    ##################################################################################################
 
     await websocket.send_text(
         json.dumps(
             {
                 "isStreaming": False,
                 "message": response,
-                "primaryTable": primary_table,
-                "tables": [
-                    get_table_as_json(table["supabase_table_name"]) for table in tables
-                ],
             }
         )
     )
@@ -279,7 +292,7 @@ def generate_response(
     query: str,
     results: any,
     sql_reasoning: str,
-    llm: ChatOpenAI = chatgpt_o3_mini,
+    llm: ChatOpenAI = chatgpt_4o,
     verbose: bool = False,
     graph: bool = False,
 ):
@@ -295,6 +308,21 @@ def generate_response(
     )
 
     return response.content
+
+
+def graph_data(
+    query: str,
+    sql_reasoning: str,
+    schema: str,
+    llm: ChatOpenAI = chatgpt_4o,
+):
+    chain = GRAPH_GENERATION_PROMPT | llm
+
+    response = chain.invoke(
+        {"query": query, "sql_reasoning": sql_reasoning, "schema": str}
+    )
+
+    logger.info(response.content)
 
 
 if __name__ == "__main__":
