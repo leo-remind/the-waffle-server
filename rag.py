@@ -225,9 +225,9 @@ def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3
     logger.info(f"query: {query}")
 
     response = chain.invoke({"query": query, "schema": schema_str})
-    log.info(f"generated_response: {response.content}")
+    logger.info(f"generated_response: {response.content}")
     sql_query = extract_first_code_block(response.content)
-    log.info(f"generated sql query:\n {sql_query}")
+    logger.info(f"generated sql query:\n {sql_query}")
 
     return sql_query
 
