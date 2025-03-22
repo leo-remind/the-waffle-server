@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os
+import re
 from asyncio import sleep
 from typing import List
 
@@ -23,6 +24,8 @@ from prompts import (
 
 load_dotenv()
 logger = logging.getLogger(__file__)
+
+MODEL_NAME_RE = re.compile(r"SELECT.*?FROM\s*(.{20}).*", re.IGNORECASE)
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
@@ -83,6 +86,7 @@ async def query_rag(
     )
     await sleep(0.1)
     results = execute_sql_query(sql_query)
+
     await websocket.send_text(
         json.dumps(
             {"isStreaming": True, "message": "Values collated, generating response..."}
@@ -92,11 +96,18 @@ async def query_rag(
     response = generate_response(
         og_query, results, sql_query, schema_str, verbose=verbose, graph=graph
     )
+    model_name_match = MODEL_NAME_RE.match(sql_query)
+    if model_name_match:
+        primary_table = model_name_match.groups()[0]
+    else:
+        primary_table = ""
+
     await websocket.send_text(
         json.dumps(
             {
                 "isStreaming": False,
                 "message": response,
+                "primaryTable": primary_table,
                 "tables": [
                     get_table_as_json(table["supabase_table_name"]) for table in tables
                 ],
