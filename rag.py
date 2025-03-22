@@ -191,6 +191,7 @@ def find_k_relevant_tables(
         "inputs": {"text": query},
         "top_k": top_k * 4,
     }
+
     if pdf_name is not None:
         logger.info(f"FILTER pinecone on pdf_name: {pdf_name}")
         query["filter"] = {"pdf_name": pdf_name}

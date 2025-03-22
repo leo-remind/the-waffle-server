@@ -6,7 +6,7 @@ import supabase
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from rich.logging import RichHandler
 
 from rag import query_rag
@@ -161,6 +161,11 @@ async def available_pdfs():
             status_code=500, detail=f"Failed to get available pdfs: {str(e)}"
         )
 
+
+@app.get("/pdf/{filename}")
+async def get_pdf(filename: str):
+    response = supabase_client.storage.from_(bucket_name).get_public_url(filename)
+    return RedirectResponse(url=response)
 
 if __name__ == "__main__":
     import uvicorn
