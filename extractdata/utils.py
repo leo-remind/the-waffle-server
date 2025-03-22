@@ -3,7 +3,7 @@ import os
 import random
 import string
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from logging import getLogger
 
 import numpy as np
@@ -201,14 +201,13 @@ def get_20_random_string():
     """
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
 
-def comment_the_schema(schema, dataframe):
+def comment_the_schema(schema, df):
     """
     Comment the schema with the column names.
     """
-    editsch = schema.split("\n")
-    x = editsch.split("\n")[1:]
+    x = schema.split("\n")[1:]
 
-    for i, col in enumerate(dataframe.columns):
+    for i, col in enumerate(df.columns):
         x[i] = f"{x[i]} -- {', '.join(random.choices(list(set(col.values)), k=3))}"
     schema = "\n".join(x)
 
@@ -232,7 +231,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             schema, insert_command, typed_df = get_command_from(
                 df=table["df"], title=random_string
             )
-            commented_schema = comment_the_schema(schema, df=table["df"])
+            commented_schema = comment_the_schema(schema, table["df"])
             logger.info(f"Commented schema: {commented_schema}")
             typed_df = typed_df.replace({np.nan: None, "NONE": None})
             typed_df = typed_df.replace({None: "NULL"})
@@ -292,8 +291,8 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
         except (Exception, psycopg2.DatabaseError) as error:
             logger.info(f"ERROR: {error}")
             cur.execute("ROLLBACK")
-
             raise error
+        
         finally:
             cur.close()
             supabase_client.commit()
@@ -309,9 +308,11 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
 def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client):
     logger.info(f"started thread pool with {N_THREADS}")
     with ThreadPoolExecutor(N_THREADS) as exe:
-        exe.map(
-            lambda x: save_single_to_supabase_and_pinecone(
-                x, supabase_client, pinecone_client
-            ),
-            table_responses,
-        )
+
+        futures = {exe.submit(save_single_to_supabase_and_pinecone, x, supabase_client, pinecone_client): x for x in table_responses}
+
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+            except Exception as e:
+                print(f"Task {futures[future]} generated an exception: {e}")

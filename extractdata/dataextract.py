@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import os
@@ -157,7 +158,7 @@ def batched_system(
     return message_batch
 
 
-def synchronous_batched_system(
+async def asynchronous_batched_system(
     image_datas: list[tuple[int, Image]],
     pdf_name: str,
     pdf_supabase_url: str,
@@ -199,7 +200,7 @@ def synchronous_batched_system(
             )
             break
         logger.info(f"[{datetime.now()}] Batch {batch_id} is still processing...")
-        time.sleep(POLLING_RATE)
+        asyncio.sleep(POLLING_RATE)
 
     final_results = []
     for result in client.messages.batches.results(

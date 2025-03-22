@@ -12,7 +12,7 @@ from pinecone import Pinecone
 from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 
 from constants import LOAD_MODEL
-from extractdata.dataextract import synchronous_batched_system
+from extractdata.dataextract import asynchronous_batched_system
 from extractdata.utils import save_to_supabase_and_pinecone
 
 logger = getLogger(__file__)
@@ -70,7 +70,7 @@ def pdf_to_images(pdf: bytes) -> list[Image]:
     return images
 
 
-def process_pdf(pdf: bytes, filename: str, url: str):
+async def process_pdf(pdf: bytes, filename: str, url: str):
     """
     Process a pdf
 
@@ -92,7 +92,7 @@ def process_pdf(pdf: bytes, filename: str, url: str):
 
     logger.debug("sent images with tables to pjr")
 
-    table_responses = synchronous_batched_system(
+    table_responses = await asynchronous_batched_system(
         image_datas=images_with_tables,
         pdf_name=filename,
         pdf_supabase_url=url,
