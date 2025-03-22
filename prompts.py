@@ -90,6 +90,10 @@ You should utilise the SQL QUERY REASONING to understand the RESULT, and the for
 Ensure that your answer is precise & correct based on the information I have provided, answering the user PROMPT concisely & precisely with a friendly tone
 
 PROMPT: {query}
+SCHEMA: 
+```sql
+{schema}
+```
 SQL QUERY REASONING:
 """
 {sql_reasoning}
@@ -122,26 +126,44 @@ results: {result}
 
 GRAPH_GENERATION_PROMPT = PromptTemplate.from_template(
     '''
-You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to create a javascript graph program using `chart.js` by deeply understand the user's intent, think step-by-step and create a logical program which will help you visualise the data in the schema provided below based on the user prompt, provide clear and accurate answers, always prioritize being truthful and tailoring your responses specifically to the user's needs and preferences.
+1. Create a flawless Python3 matplotlib program that:
+   - Retrieves data from Supabase
+   - Generates a beautiful visualization
+   - Saves to image file
+   - Uploads to public bucket
+   - Saves public URL to "SUPABASE_GRAPH_URL" variable
 
-You are supposed to write an interactive javascript using the `chart.js` javascript library given the following schema, which you can access using `supabase`
+2. Requirements:
+   - Your code will be executed via `exec()` - error-free execution is critical
+   - The URL must be saved in "SUPABASE_GRAPH_URL" (mandatory)
+   - Include robust error handling for all operations
 
-the supabase client can be created using createClient function in your snippet, this snippet will be embedded so thoughtfully write this code
-You should utilise the SQL QUERY REASONING to understand the how we have arived at the result, and make the graph such that it aids in understanding the answer and helps the user PROMPT
+3. Data Processing:
+   - Thoroughly analyze table structure and content relevance
+   - Handle all edge cases (null values, missing data, outliers)
+   - Implement data validation before visualization
+   - Use appropriate data transformations
 
-I want you to thoughtfully think about each table provided to you , what kind of data it contains based on the table title, and how that data is relevant to your PROMPT, relate how which tables are relevant to the user PROMPT & SQL QUERY REASONING, also think about potential edge-cases such as filtering all values which might be null or incorrect & I want you to work out the reasoning as to a valid program & edge cases to query the tables to get the required data to fulfil the user prompt, ENSURE THAT THE CODE IS NOT BUGGY, think of a failsafe in that case.
-Output the SQL query, enclosing all your work for this step within triple backticks (```).
+4. Visualization Standards:
+   - Create visually striking, publication-quality graphs
+   - Ensure clear labels, legends, and appropriate color schemes
+   - Optimize for readability and insight extraction
+   - Match visualization type to data characteristics
 
+5. Technical Implementation:
+   - Credentials are loaded via python-dotenv from .env
+   - Available variables: SUPABASE_KEY, SUPABASE_PVT_KEY, SUPABASE_URL, SUPABASE_BUCKET_NAME
+   - Follow Supabase best practices for data retrieval
+   - Implement proper resource cleanup
 
-SQL QUERY REASONING:
-"""
-{sql_reasoning}
-"""
+6. Context:
+```
+
 SCHEMA:
 ```sql
 {schema}
 ```
-PROMPT: {query}
 
+PROMPT: {query}
 '''
 )

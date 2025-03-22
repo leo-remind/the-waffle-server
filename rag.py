@@ -14,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from pinecone import Pinecone
 from rich.pretty import pretty_repr
 from supabase import Client, create_client
+from langchain_anthropic import ChatAnthropic
 
 from constants import RETRIEVAL_THRESHOLD
 from prompts import (
@@ -50,6 +51,11 @@ pg_conn = psycopg2.connect(
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 chatgpt_4o = ChatOpenAI(model="gpt-4o")
 chatgpt_o3_mini = ChatOpenAI(model="o3-mini")
+claude_3_7 = ChatAnthropic(
+    model="claude-3-7-sonnet-20250219",  # Use the Claude 3.7 Sonnet model
+    anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    max_tokens_to_sample=8092
+)
 
 
 def stream_fmt(a):
@@ -124,15 +130,17 @@ async def query_rag(
     )
     await sleep(0.1)
     response = generate_response(
-        og_query, results, sql_reasoning, verbose=verbose, graph=graph
+        og_query, results, sql_reasoning, schema_str, verbose=verbose, graph=graph
     )
 
     ############################### ChartJS Graph ####################################################
-    await websocket.send_text(
-        json.dumps({"isStreaming": True, "message": "Creating graph for your use-case"})
-    )
+    graph_code = None
+    if graph:
+        await websocket.send_text(
+            json.dumps({"isStreaming": True, "message": "Creating graph for your use-case"})
+        )
 
-    graph_data(query, sql_reasoning, schema_str)
+        graph_code  = graph_data(query, sql_query, schema_str)
 
     await sleep(0.1)
     ##################################################################################################
@@ -142,6 +150,7 @@ async def query_rag(
             {
                 "isStreaming": False,
                 "message": response,
+                "graph_code" : graph_code,
             }
         )
     )
@@ -292,6 +301,7 @@ def generate_response(
     query: str,
     results: any,
     sql_reasoning: str,
+    sql_schema: str,
     llm: ChatOpenAI = chatgpt_4o,
     verbose: bool = False,
     graph: bool = False,
@@ -304,6 +314,7 @@ def generate_response(
             "query": query,
             "result": str(results),
             "sql_reasoning": sql_reasoning,
+            "schema" : sql_schema,
         }
     )
 
@@ -312,18 +323,20 @@ def generate_response(
 
 def graph_data(
     query: str,
-    sql_reasoning: str,
+    sql_query: str,
     schema: str,
-    llm: ChatOpenAI = chatgpt_4o,
+    llm: ChatOpenAI = claude_3_7,
 ):
     chain = GRAPH_GENERATION_PROMPT | llm
 
     response = chain.invoke(
-        {"query": query, "sql_reasoning": sql_reasoning, "schema": str}
+        {"query": query, "sql_query": sql_query, "schema": schema},
+        max_tokens=16000
     )
 
     logger.info(response.content)
-
-
-if __name__ == "__main__":
-    execute_sql_query('SELECT * FROM "METADATA"')
+    SUPABASE_GRAPH_URL = None
+    code = extract_first_code_block(response.content)
+    exec(code)
+    print(SUPABASE_GRAPH_URL)
+    return SUPABASE_GRAPH_URL
