@@ -1,6 +1,6 @@
+import json
 import logging
 import os
-import json
 
 import supabase
 from dotenv import load_dotenv
@@ -36,7 +36,9 @@ supabase_client = supabase.create_client(supabase_url, supabase_key)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # In production, specify your frontend domain
+    allow_origins=[
+        "http://localhost:3000"
+    ],  # In production, specify your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,7 +49,13 @@ app.add_middleware(
 async def query_rag_endpoint(websocket: WebSocket) -> StreamingResponse:
     await websocket.accept()
     query_data = json.loads(await websocket.receive_text())
-    await query_rag(websocket,query_data["query"], verbose=query_data["verbose"], graph=query_data["graph"])
+    await query_rag(
+        websocket,
+        query_data["query"],
+        verbose=query_data["verbose"],
+        graph=query_data["graph"],
+        pdf_name=query_data["pdf_name"],
+    )
 
 
 @app.post("/upload/pdf")
@@ -69,7 +77,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         )
 
         url = supabase_client.storage.from_(bucket_name).get_public_url(response.path)
-        
+
         # TODO: HAHHAHAHA TIME TO PROCESS THE PDF BUT I DONT WANT TO CANCER MY CLAUDE
         # try:
         #     process_pdf(file_content, filename, url)

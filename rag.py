@@ -59,13 +59,29 @@ def stream_fmt(a):
 
 
 async def query_rag(
-    websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False
+    websocket: WebSocket,
+    og_query: str,
+    verbose: bool = False,
+    graph: bool = False,
+    pdf_name: str | None = None,
 ):
     await websocket.send_text(
         json.dumps({"isStreaming": True, "message": "Finding most relevant tables\n\n"})
     )
     query = query_augmentation(og_query)
-    tables = find_k_relevant_tables(query)
+    tables = find_k_relevant_tables(query, pdf_name)
+
+    if not tables:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "isStreaming": False,
+                    "message": "no relevant tables found",
+                    "tables": [],
+                }
+            )
+        )
+
     await websocket.send_text(
         json.dumps(
             {
@@ -142,12 +158,21 @@ def get_table_as_json(table_name: str) -> str:
     )
 
 
-def find_k_relevant_tables(query: str, top_k: int = 3) -> List[str]:
+def find_k_relevant_tables(
+    query: str, pdf_name: str | None = None, top_k: int = 3
+) -> List[str]:
     index = pc.Index("the-waffle")
+    query = {
+        "inputs": {"text": query},
+        "top_k": top_k * 4,
+    }
+    if pdf_name is not None:
+        logger.info(f"FILTER pinecone on pdf_name: {pdf_name}")
+        query["filter"] = {"pdf_name": pdf_name}
 
     results = index.search_records(
         namespace="",
-        query={"inputs": {"text": query}, "top_k": top_k * 4},
+        query=query,
         fields=["text", "supabase_table_name"],
         rerank={"model": "bge-reranker-v2-m3", "top_n": top_k, "rank_fields": ["text"]},
     )
