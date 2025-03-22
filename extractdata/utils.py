@@ -201,6 +201,7 @@ def get_20_random_string():
     """
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
 
+
 def comment_the_schema(schema, dataframe):
     """
     Comment the schema with the column names.
@@ -213,6 +214,7 @@ def comment_the_schema(schema, dataframe):
     schema = "\n".join(x)
 
     return schema
+
 
 def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_client):
     table_data = response["tables"]

@@ -83,25 +83,6 @@ async def query_rag(
             )
         )
 
-    ############################### TABLES ####################################################
-    model_name_match = MODEL_NAME_RE.match(sql_query)
-    if model_name_match:
-        primary_table = model_name_match.groups()[0]
-    else:
-        primary_table = ""
-    await websocket.send_text(
-        json.dumps(
-            {
-                "isStreaming": True,
-                "message": f"Generating response from {len(tables)} relevant table/s\n\n",
-                "primaryTable": primary_table,
-                "tables": [
-                    get_table_as_json(table["supabase_table_name"]) for table in tables
-                ],
-            }
-        )
-    )
-    ###########################################################################################
     await sleep(0.1)
     schemas = get_table_schemas(tables)
     schema_str = "\n\n".join(
@@ -111,9 +92,26 @@ async def query_rag(
         ]
     )
     sql_reasoning, sql_query = generate_sql_query(query, schema_str)
-    ############################### SQL Query ####################################################
+
+    model_name_match = MODEL_NAME_RE.match(sql_query)
+    if model_name_match:
+        primary_table = model_name_match.groups()[0]
+    else:
+        primary_table = ""
+    ############################### TABLES & SQL Query ####################################################
     await websocket.send_text(
-        json.dumps({"isStreaming": True, "message": "Querying SQL Database with query", "sqlQuery" : sql_query, "sqlReasoning" : sql_reasoning})
+        json.dumps(
+            {
+                "isStreaming": True,
+                "message": "Querying SQL Database with query",
+                "sqlQuery": sql_query,
+                "sqlReasoning": sql_reasoning,
+                "primaryTable": primary_table,
+                "tables": [
+                    get_table_as_json(table["supabase_table_name"]) for table in tables
+                ],
+            }
+        )
     )
     ##############################################################################################
     await sleep(0.1)
@@ -127,13 +125,11 @@ async def query_rag(
     await sleep(0.1)
     response = generate_response(
         og_query, results, sql_reasoning, verbose=verbose, graph=graph
-    ) 
+    )
 
     ############################### ChartJS Graph ####################################################
     await websocket.send_text(
-        json.dumps(
-            {"isStreaming": True, "message": "Creating graph for your use-case"}
-        )
+        json.dumps({"isStreaming": True, "message": "Creating graph for your use-case"})
     )
 
     graph_data(query, sql_reasoning, schema_str)
@@ -313,22 +309,21 @@ def generate_response(
 
     return response.content
 
+
 def graph_data(
-        query: str,
-        sql_reasoning: str,
-        schema: str,
-    
-        llm: ChatOpenAI = chatgpt_4o,
-    ):
+    query: str,
+    sql_reasoning: str,
+    schema: str,
+    llm: ChatOpenAI = chatgpt_4o,
+):
     chain = GRAPH_GENERATION_PROMPT | llm
 
-    response = chain.invoke({
-        "query" : query,
-        "sql_reasoning" : sql_reasoning,
-        "schema" : str
-    })
+    response = chain.invoke(
+        {"query": query, "sql_reasoning": sql_reasoning, "schema": str}
+    )
 
     logger.info(response.content)
+
 
 if __name__ == "__main__":
     execute_sql_query('SELECT * FROM "METADATA"')
