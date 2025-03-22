@@ -155,7 +155,8 @@ async def asynchronous_batched_system(
             except Exception as e:
                 logger.info(f"Failed to convert response to DF: {e}")
                 ec += 1
-                raise e
+                continue
+                # raise e
 
             statsmeta = {}
             statsmeta["input_tokens_used"] = result.result.message.usage.input_tokens
