@@ -93,8 +93,11 @@ async def query_rag(
     )
     sql_reasoning, sql_query = generate_sql_query(query, schema_str)
 
-    model_name_match = MODEL_NAME_RE.match(sql_query)
-    if model_name_match:
+    if sql_query:
+        model_name_match = MODEL_NAME_RE.match(sql_query)
+    else:
+        model_name_match = None
+    if model_name_match is not None:
         primary_table = model_name_match.groups()[0]
     else:
         primary_table = ""
