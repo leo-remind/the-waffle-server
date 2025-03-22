@@ -119,3 +119,28 @@ table_schema:
 results: {result} 
 """
 )
+
+GRAPH_GENERATION_PROMPT = PromptTemplate.from_template('''
+You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to create a javascript graph program using `chart.js` by deeply understand the user's intent, think step-by-step and create a logical program which will help you visualise the data in the schema provided below based on the user prompt, provide clear and accurate answers, always prioritize being truthful and tailoring your responses specifically to the user's needs and preferences.
+
+You are supposed to write an interactive javascript using the `chart.js` javascript library given the following schema, which you can access using `supabase`
+
+the supabase client can be created using createClient function in your snippet, this snippet will be embedded so thoughtfully write this code
+You should utilise the SQL QUERY REASONING to understand the how we have arived at the result, and make the graph such that it aids in understanding the answer and helps the user PROMPT
+
+I want you to thoughtfully think about each table provided to you , what kind of data it contains based on the table title, and how that data is relevant to your PROMPT, relate how which tables are relevant to the user PROMPT & SQL QUERY REASONING, also think about potential edge-cases such as filtering all values which might be null or incorrect & I want you to work out the reasoning as to a valid program & edge cases to query the tables to get the required data to fulfil the user prompt, ENSURE THAT THE CODE IS NOT BUGGY, think of a failsafe in that case.
+Output the SQL query, enclosing all your work for this step within triple backticks (```).
+
+
+SQL QUERY REASONING:
+"""
+{sql_reasoning}
+"""
+SCHEMA:
+```sql
+{schema}
+```
+PROMPT: {query}
+
+'''
+)
