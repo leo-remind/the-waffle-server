@@ -11,6 +11,7 @@ from rich import print
 import supabase
 from pathvalidate import sanitize_filepath
 from pinecone import Pinecone
+from PIL import Image
 
 from utils import (
     calculate_cost,
@@ -135,7 +136,7 @@ def batched_system(
 
 
 def synchronous_batched_system(
-    image_datas: list[tuple[int, bytes]],
+    image_datas: list[tuple[int, Image]],
     pdf_name: str,
     pdf_supabase_url: str,
     client: anthropic.Anthropic,
@@ -151,6 +152,7 @@ def synchronous_batched_system(
 
     for ident, (page_no, image) in enumerate(image_datas):
         custom_id = f"IMAGE_REQ_{ident}_pg{page_no}"
+        image = image.tobytes()
         requests.append(get_claude_powered_req(image, custom_id=custom_id))
         customId2Page[custom_id] = page_no
 
