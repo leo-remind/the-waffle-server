@@ -31,6 +31,7 @@ supabase_client = psycopg2.connect(
     port=os.environ.get("PG_PORT"),
     sslmode="require",
 )
+
 anthropic_client = Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY"),
 )
