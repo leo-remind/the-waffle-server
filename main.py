@@ -98,6 +98,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 """
 
+
 @app.get("/available-pdfs")
 async def available_pdfs():
     try:
@@ -113,8 +114,10 @@ async def available_pdfs():
         raise HTTPException(status_code=500, detail=f"Storage error: {str(e)}")
     except Exception as e:
         logger.error(f"Error getting available pdfs: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get available pdfs: {str(e)}")
-    
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get available pdfs: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
