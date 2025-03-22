@@ -94,13 +94,49 @@ def find_k_relevant_tables(query: str, top_k: int = 3) -> List[str]:
 
     return top_k_tables
 
+def extract_first_code_block(text):
+    # Try to find triple quotes first
+    triple_quote_start = text.find('"""')
+    if triple_quote_start != -1:
+        # Find the end of the triple quotes block
+        triple_quote_end = text.find('"""', triple_quote_start + 3)
+        if triple_quote_end != -1:
+            # Extract content between triple quotes
+            return text[triple_quote_start + 3:triple_quote_end]
+    
+    # If no triple quotes found, try triple backticks
+    backtick_start = text.find('```')
+    if backtick_start != -1:
+        # Find the end of the triple backticks block
+        backtick_end = text.find('```', backtick_start + 3)
+        if backtick_end != -1:
+            # Extract content between backticks
+            content = text[backtick_start + 3:backtick_end]
+            
+            # Remove language hint if present (text before the first newline)
+            first_newline = content.find('\n')
+            if first_newline != -1:
+                # Check if there's text before the newline (indicating a language hint)
+                if first_newline > 0:
+                    # Skip the language hint and the newline
+                    return content[first_newline + 1:]
+                else:
+                    # Just a newline with no language hint
+                    return content[1:]
+            else:
+                # No newline found, return the content as is
+                return content
+    
+    # No code blocks found
+    return None
 
 def query_augmentation(query: str, llm: ChatOpenAI = chatgpt_4o) -> str:
     chain = QUERY_AUGMENTATION_PROMPT | llm
 
     response = chain.invoke(query)
     log.info(f"augmented query: {response.content}")
-    return response.content
+    aug_query = extract_first_code_block(response.content)
+    return aug_query
 
 
 def get_table_schemas(tables: List):
@@ -135,6 +171,7 @@ def execute_sql_query(sql_query: str):
     cursor = pg_conn.cursor()
     cursor.execute(sql_query)
 
+    cursor.execute("ROLLBACK")
     results = cursor.fetchall()
 
     cursor.close()

@@ -57,6 +57,7 @@ async def query_rag_endpoint(websocket: WebSocket) -> StreamingResponse:
     )
 
 
+"""
 @app.post("/upload/pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     try:
@@ -95,6 +96,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Error uploading file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+"""
 
 
 if __name__ == "__main__":
