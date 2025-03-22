@@ -180,7 +180,7 @@ def synchronous_batched_system(
     ):
         match result.result.type:
             case "succeeded":
-                # print(f"Success! {result.custom_id}")
+                print(f"Success! {result.custom_id}")
                 final_results.append(result)
 
     converted_results = []
