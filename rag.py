@@ -160,9 +160,10 @@ def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3
 
     response = chain.invoke({"query": query, "schema": schema_str})
     log.info(f"generated_response: {response.content}")
-    raise Exception
+    sql_query = extract_first_code_block(response.content)
+    log.info(f"generated sql query:\n {sql_query}")
 
-    return response.content
+    return sql_query
 
 
 def execute_sql_query(sql_query: str):
@@ -172,7 +173,6 @@ def execute_sql_query(sql_query: str):
     cursor = pg_conn.cursor()
     cursor.execute(sql_query)
 
-    cursor.execute("ROLLBACK")
     results = cursor.fetchall()
 
     cursor.close()
