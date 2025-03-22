@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from rich.logging import RichHandler
 
 from rag import query_rag
-from table import pdf_to_images, process_pdf
+from table import process_pdf
 
 load_dotenv()
 
