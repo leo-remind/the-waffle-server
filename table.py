@@ -1,14 +1,19 @@
 import io
 from logging import getLogger
+import os
 
 import fitz
 import numpy as np
+import psycopg2
 import torch
 from anthropic import Anthropic
 from PIL import Image
 from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
+from pinecone import Pinecone
 
 from constants import LOAD_MODEL
+from extractdata.dataextract import synchronous_batched_system
+from extractdata.utils import save_to_supabase_and_pinecone
 
 logger = getLogger(__file__)
 
@@ -18,14 +23,22 @@ if LOAD_MODEL:
         "microsoft/table-transformer-detection"
     )
 
-anthropic_client = Anthropic(api_key="some-api-key")
+supabase_client = psycopg2.connect(
+        database=os.environ.get("PG_DBNAME"),
+        user=os.environ.get("PG_USER"),
+        password=os.environ.get("PG_PASSWORD"),
+        host=os.environ.get("PG_HOST"),
+        port=os.environ.get("PG_PORT"),
+        sslmode="require",
+)
+anthropic_client = Anthropic(
+    api_key=os.environ.get("ANTHROPIC_API_KEY"),
+)
+pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+
 logger.debug("initialized feature extractor, detection model and anthropic client")
 
 WHITE_PCT_THRESHOLD = 96.0
-
-
-def batched_system(images: list[Image], client: Anthropic):
-    logger.debug(f"received {len(images)} images")
 
 
 def pdf_to_images(pdf: bytes) -> list[Image]:
@@ -75,7 +88,15 @@ def process_pdf(pdf: bytes):
         logger.debug("pdf has no pages with tables")
 
     logger.debug("sent images with tables to pjr")
-    batched_system(images_with_tables, anthropic_client)
+
+    table_responses = synchronous_batched_system(
+        image_datas=enumerate(images_with_tables),
+        pdf_name="test.pdf",
+        pdf_supabase_url="https://thinklude.ai",
+        client=anthropic_client,
+    )
+    save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
+
 
 
 def calculate_white_percentage(image: Image, threshold: int = 245) -> float:
