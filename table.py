@@ -98,6 +98,7 @@ def process_pdf(pdf: bytes, filename: str, url: str):
         pdf_supabase_url=url,
         client=anthropic_client,
     )
+    logger.info("received table responses from sync batched system")
     save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
 
 
@@ -156,6 +157,7 @@ def filter_pages_with_tables(
     with_tables = []
     for no, image in enumerate(images, 1):
         # convert to grayscale wihout losing the dimensions
+        image_original = image.copy()
         image = image.convert("L").convert("RGB")
         white_pct = calculate_white_percentage(image)
 
@@ -190,7 +192,7 @@ def filter_pages_with_tables(
                 ', '.join('%.2f' % i for i in result['scores'])
             }, white pct = {white_pct}"
         )
-        with_tables.append((no, image))
+        with_tables.append((no, image_original))
 
     return with_tables
 

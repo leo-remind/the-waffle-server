@@ -7,6 +7,7 @@ from logging import getLogger
 from pathlib import Path
 
 import anthropic
+import numpy as np
 import psycopg2
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
@@ -23,6 +24,32 @@ from .utils import (
 
 logger = getLogger(__file__)
 load_dotenv()
+
+
+def otsu_threshold(img: Image) -> Image:
+    img_array = np.array(img.convert("L"))
+    histogram, bin_edges = np.histogram(img_array, bins=256, range=(0, 256))
+    total_pixels = img_array.size
+    cumsum = np.cumsum(histogram)
+    cumulative_mean = np.cumsum(histogram * np.arange(256)) / (cumsum + 1e-10)
+    global_mean = np.sum(histogram * np.arange(256)) / total_pixels
+    between_class_variances = np.zeros(256)
+
+    for t in range(256):
+        w_bg = cumsum[t] / total_pixels
+        w_fg = 1 - w_bg
+
+        if w_bg > 0 and w_fg > 0:
+            mean_bg = cumulative_mean[t]
+            mean_fg = (global_mean * total_pixels - mean_bg * cumsum[t]) / (
+                total_pixels - cumsum[t]
+            )
+
+            between_class_variances[t] = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+
+    threshold = np.argmax(between_class_variances)
+
+    return Image.fromarray(np.where(img_array > threshold, 255, 0).astype(np.uint8))
 
 
 def claude_powered_extraction(
@@ -149,6 +176,7 @@ def synchronous_batched_system(
     for ident, (page_no, image) in enumerate(image_datas):
         bytes_stream = io.BytesIO()
         custom_id = f"IMAGE_REQ_{ident}_pg{page_no}"
+        # image = otsu_threshold(image)
         image.save(bytes_stream, format="png")
         bytes_stream.seek(0)
         requests.append(

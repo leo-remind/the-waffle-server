@@ -81,7 +81,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             process_pdf(file_content, filename, url)
         except Exception as e:
             return JSONResponse(
-                status_code=500, content={"error": f"error in processing pdf {e}"}
+                status_code=500, content={"error": f"error in processing pdf: {e}"}
             )
 
         return JSONResponse(

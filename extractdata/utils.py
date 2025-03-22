@@ -186,7 +186,7 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
 
     insert_command = f"""INSERT INTO "{title}" ({", ".join(['"' + col + '"' for col in df.columns])}) VALUES 
     ({", ".join(["%s" for _ in df.columns])});"""
-    sql_command = sql_command.replace("CREATE TABLE", f"CREATE TABLE IF NOT EXISTS")
+    sql_command = sql_command.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
     sql_command = sql_command.replace('"index" INTEGER', '"index" SERIAL PRIMARY KEY')
 
     return sql_command, insert_command, df
@@ -206,7 +206,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
     for table in table_data:
         cur = supabase_client.cursor()
 
-        logger.info("=" * 80, "\n\n")
+        logger.info(("=" * 80) + "\n\n")
         logger.info(
             f"Table: '{table['title']}', Year Range: ({table['min_year']}-{table['max_year']})"
         )
