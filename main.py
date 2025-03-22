@@ -138,7 +138,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 async def available_pdfs():
     try:
         response = supabase_client.storage.from_(bucket_name).list("")
-
+        print(response)
         return JSONResponse(
             status_code=200,
             content={"files": [x for x in response if not x["name"].startswith(".")]},
