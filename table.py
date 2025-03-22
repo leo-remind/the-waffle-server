@@ -12,7 +12,7 @@ from pinecone import Pinecone
 from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 
 from constants import LOAD_MODEL
-from extractdata.dataextract import synchronous_batched_system
+from extractdata.dataextract import asynchronous_batched_system
 from extractdata.utils import save_to_supabase_and_pinecone
 
 logger = getLogger(__file__)
@@ -42,12 +42,13 @@ logger.debug("initialized feature extractor, detection model and anthropic clien
 WHITE_PCT_THRESHOLD = 96.0
 
 
-def pdf_to_images(pdf: bytes) -> list[Image]:
+def pdf_to_images(pdf: bytes, dpi: int = 300) -> list[Image]:
     """
     Convert PDF bytes to a list of PIL Image objects
 
     ### Params
         pdf_bytes (bytes): The PDF file as bytes
+        dpi (int): dpi
 
     ### Returns
         list: List of PIL Image objects, one for each page
@@ -58,7 +59,11 @@ def pdf_to_images(pdf: bytes) -> list[Image]:
     images = []
     for page_num in range(len(pdf_document)):
         page = pdf_document.load_page(page_num)
-        pix = page.get_pixmap(alpha=False)
+
+        zoom = dpi / 72  # 72 is the base DPI
+        matrix = fitz.Matrix(zoom, zoom)
+
+        pix = page.get_pixmap(matrix=matrix, alpha=False)
 
         img_bytes = pix.tobytes("png")
         img_stream = io.BytesIO(img_bytes)
@@ -70,7 +75,7 @@ def pdf_to_images(pdf: bytes) -> list[Image]:
     return images
 
 
-def process_pdf(pdf: bytes, filename: str, url: str):
+async def process_pdf(pdf: bytes, filename: str, url: str):
     """
     Process a pdf
 
@@ -92,7 +97,7 @@ def process_pdf(pdf: bytes, filename: str, url: str):
 
     logger.debug("sent images with tables to pjr")
 
-    table_responses = synchronous_batched_system(
+    table_responses = await asynchronous_batched_system(
         image_datas=images_with_tables,
         pdf_name=filename,
         pdf_supabase_url=url,

@@ -3,7 +3,7 @@ import os
 import random
 import string
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from logging import getLogger
 
 import numpy as np
@@ -79,15 +79,26 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
     """
     try:
         text_block = message_content[0]
+        logger.info(f"TB: {text_block.text}")
         try:
             data = json.loads(text_block.text)
         except TypeError:
             data = json.loads(text_block["text"])
 
+        if not isinstance(data, list):
+            raise ValueError("Not a list: Invalid response")
+        if len(data) == 0:
+            return None
+        if len(data) == 1:
+            if not isinstance(data[0], dict):
+                raise ValueError("Not a dict: Invalid response")
+            if not data[0]:     # empty dict
+                return None
+        
         ret_tups = []
         for conv_data in data:
             if not isinstance(conv_data, dict):
-                raise ValueError("Invalid response")
+                raise ValueError("Not a dict: Invalid response")
             # logger.info(conv_data)
             title = conv_data.get("title")
             min_year = conv_data.get("min_year")
@@ -120,13 +131,18 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                         logger.info(f"[red]Warning:[/red] {k} has length {len(v)}")
                         data[k] = data[k] + ["NONE"] * (base_len - len(v))
 
-            df = pd.DataFrame(conv_data.get("data"))
+            logger.info(f"Data: {data}")
+            
+            # check for unique keys
+
+            df = pd.DataFrame(data)
 
             ret_tups.append(
                 {"title": title, "min_year": min_year, "max_year": max_year, "df": df}
             )
     except Exception as e:
         logger.info("Invalid response: {}".format(e))
+        print(conv_data.get("data"))
         raise ValueError("Invalid response")
     return ret_tups
 
@@ -185,6 +201,16 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
     #     [f"{col} {postgressql_type_map.get(df[col].dtype, "TEXT")}" for col in df.columns]
     # )
 
+    max_col_len = 63
+
+    c = 0
+    for col in df.columns:
+        if len(col) > max_col_len:
+            df[col[:max_col_len-10] + f"_{c:04}"] = df[col]
+            df.drop(columns=[col], inplace=True)
+        
+        c += 1
+
     sql_command = pd.io.sql.get_schema(df.reset_index(), title)
 
     insert_command = f"""INSERT INTO "{title}" ({", ".join(['"' + col + '"' for col in df.columns])}) VALUES 
@@ -202,16 +228,19 @@ def get_20_random_string():
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
 
 
-def comment_the_schema(schema, dataframe):
+def comment_the_schema(schema, df):
     """
     Comment the schema with the column names.
     """
-    editsch = schema.split("\n")
-    x = editsch.split("\n")[1:]
+    splitschm = schema.split("\n")
+    x = schema.split("\n")[1:]
 
-    for i, col in enumerate(dataframe.columns):
-        x[i] = f"{x[i]} -- {', '.join(random.choices(list(set(col.values)), k=3))}"
-    schema = "\n".join(x)
+    for i, col in enumerate(df.columns, start=1):
+        x[i] = (
+            f"{x[i]}    -- {', '.join(random.choices([str(x) for x in set(df[col].values)], k=3))}"
+        )
+    
+    schema = splitschm[0] + "\n" + "\n".join(x)
 
     return schema
 
@@ -228,13 +257,15 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             f"Table: '{table['title']}', Year Range: ({table['min_year']}-{table['max_year']})"
         )
 
+        index = pinecone_client.Index("the-waffle")
+
         try:
             random_string = get_20_random_string()
 
             schema, insert_command, typed_df = get_command_from(
                 df=table["df"], title=random_string
             )
-            commented_schema = comment_the_schema(schema, df=table["df"])
+            commented_schema = comment_the_schema(schema, table["df"])
             logger.info(f"Commented schema: {commented_schema}")
             typed_df = typed_df.replace({np.nan: None, "NONE": None})
             typed_df = typed_df.replace({None: "NULL"})
@@ -279,41 +310,50 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                 ),
             )
 
-            pc_upsert.append(
-                {
-                    "id": random_string,
-                    "text": table["title"],
-                    "table_heading": table["title"],
-                    "min_year": table["min_year"],
-                    "max_year": table["max_year"],
-                    "supabase_table_name": random_string,
-                    "pdf_name": response["pdf_name"],
-                }
+            index.upsert_records(
+                "",
+                [
+                    {
+                        "id": random_string,
+                        "text": table["title"],
+                        "table_heading": table["title"],
+                        "min_year": table["min_year"],
+                        "max_year": table["max_year"],
+                        "supabase_table_name": random_string,
+                        "pdf_name": response["pdf_name"],
+                    }
+                ],
             )
 
         except (Exception, psycopg2.DatabaseError) as error:
             logger.info(f"ERROR: {error}")
             cur.execute("ROLLBACK")
-
             raise error
+
         finally:
             cur.close()
             supabase_client.commit()
-    try:
-        index = pinecone_client.Index("the-waffle")
-
-        index.upsert_records("", pc_upsert)
-    except Exception as e:
-        logger.info(f"Failed to upsert to Pinecone: {e}")
-        raise e
 
 
 def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client):
     logger.info(f"started thread pool with {N_THREADS}")
     with ThreadPoolExecutor(N_THREADS) as exe:
-        exe.map(
-            lambda x: save_single_to_supabase_and_pinecone(
-                x, supabase_client, pinecone_client
-            ),
-            table_responses,
-        )
+
+        futures = {
+            exe.submit(
+                save_single_to_supabase_and_pinecone,
+                x,
+                supabase_client,
+                pinecone_client,
+            ): x
+            for x in table_responses
+        }
+
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+            except Exception as e:
+                print(f"Task {futures[future]} generated an exception: {e}")
+                for x in futures:
+                    x.cancel()
+                raise e

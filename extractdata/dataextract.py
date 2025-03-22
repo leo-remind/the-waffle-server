@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import io
+import json
 import os
 import time
 from datetime import datetime
@@ -52,57 +54,6 @@ def otsu_threshold(img: Image) -> Image:
     return Image.fromarray(np.where(img_array > threshold, 255, 0).astype(np.uint8))
 
 
-def claude_powered_extraction(
-    image_data: bytes, client: anthropic.Anthropic, file_path: str
-) -> dict[str, any]:
-    """
-    Returns a data frame given image data bytes. It will use an LLM to extract the data.
-    """
-    encoded_image = base64.b64encode(image_data).decode("utf-8")
-    media_type = (
-        "image/png" if file_path.endswith("png") else "image/jpeg"
-    )  # @HACK: rudimentary check for media type
-
-    model_name = "claude-3-7-sonnet-20250219"
-
-    st = time.time()
-    message = client.messages.create(
-        model=model_name,
-        max_tokens=20000,
-        temperature=1,
-        system=EXTRACT_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": encoded_image,
-                        },
-                    }
-                ],
-            }
-        ],
-    )
-    et = time.time()
-
-    df = convert_response_to_df(message.content)
-
-    token_counts = message.usage
-
-    return {
-        "data": df,
-        "time_taken": et - st,
-        "tokens_used": token_counts.input_tokens + token_counts.output_tokens,
-        "approx_cost": calculate_cost(
-            token_counts.input_tokens, token_counts.output_tokens, model_name=model_name
-        ),
-    }
-
-
 def get_claude_powered_req(image: bytes, custom_id):
     """
     CLAUDE POWERED REQ
@@ -135,34 +86,12 @@ def get_claude_powered_req(image: bytes, custom_id):
     )
 
 
-def batched_system(
-    image_datas: list[tuple[int, bytes]], pdf_name: str, client: anthropic.Anthropic
-) -> any:
-    """
-    Dispatch the Claude-powered batched system for extracting data from images.
-
-    Returns the message_batch object.
-    """
-    requests = []
-
-    for ident, (page_no, image) in enumerate(image_datas):
-        requests.append(
-            get_claude_powered_req(image, custom_id=f"IMAGE_REQ_{ident}_pg{page_no}")
-        )
-
-    message_batch = client.messages.batches.create(
-        requests=requests,
-    )
-
-    return message_batch
-
-
-def synchronous_batched_system(
+async def asynchronous_batched_system(
     image_datas: list[tuple[int, Image]],
     pdf_name: str,
     pdf_supabase_url: str,
     client: anthropic.Anthropic,
-    POLLING_RATE=12,
+    POLLING_RATE=10,
 ) -> any:
     """
     Dispatch several batch requests, and then wait until all the requests are complete.
@@ -178,6 +107,9 @@ def synchronous_batched_system(
         custom_id = f"IMAGE_REQ_{ident}_pg{page_no}"
         # image = otsu_threshold(image)
         image.save(bytes_stream, format="png")
+        # save image to disk
+        # image.save(f"otsu_{custom_id}.png", format="png")
+
         bytes_stream.seek(0)
         requests.append(
             get_claude_powered_req(bytes_stream.read(), custom_id=custom_id)
@@ -199,7 +131,7 @@ def synchronous_batched_system(
             )
             break
         logger.info(f"[{datetime.now()}] Batch {batch_id} is still processing...")
-        time.sleep(POLLING_RATE)
+        await asyncio.sleep(POLLING_RATE)
 
     final_results = []
     for result in client.messages.batches.results(
@@ -214,12 +146,16 @@ def synchronous_batched_system(
 
     converted_results = []
     if final_results:
+        ec = 0
         for result in final_results:
             try:
                 df_results = convert_response_to_df(result.result.message.content)
+                if df_results is None:
+                    continue # skip this result
             except Exception as e:
                 logger.info(f"Failed to convert response to DF: {e}")
-                continue
+                ec += 1
+                raise e
 
             statsmeta = {}
             statsmeta["input_tokens_used"] = result.result.message.usage.input_tokens
@@ -242,6 +178,8 @@ def synchronous_batched_system(
                 }
             )
 
+        if ec == len(final_results):
+            raise ValueError("All results failed to convert")
     else:
         raise ValueError("No results found")
 
@@ -256,32 +194,34 @@ def load_image_data(file_path):
 
 
 if __name__ == "__main__":
-    supabase_client = psycopg2.connect(
-        database=os.environ.get("PG_DBNAME"),
-        user=os.environ.get("PG_USER"),
-        password=os.environ.get("PG_PASSWORD"),
-        host=os.environ.get("PG_HOST"),
-        port=os.environ.get("PG_PORT"),
-        sslmode="require",
-    )
-    logger.info("Connected to Supabase")
-    anthropic_client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-    )
-    pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+    # supabase_client = psycopg2.connect(
+    #     database=os.environ.get("PG_DBNAME"),
+    #     user=os.environ.get("PG_USER"),
+    #     password=os.environ.get("PG_PASSWORD"),
+    #     host=os.environ.get("PG_HOST"),
+    #     port=os.environ.get("PG_PORT"),
+    #     sslmode="require",
+    # )
+    # logger.info("Connected to Supabase")
+    # anthropic_client = anthropic.Anthropic(
+    #     api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    # )
+    # pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
 
-    file_paths = list(Path("pngs").glob("*.png"))
-    # file_paths = ["pngs/notitle.png"]
+    # file_paths = list(Path("pngs").glob("*.png"))
+    # # file_paths = ["pngs/notitle.png"]
 
-    logger.info(f"Processing {len(file_paths)} images...")
+    # logger.info(f"Processing {len(file_paths)} images...")
 
-    image_datas = map(load_image_data, file_paths)
-    image_datas = list(enumerate(image_datas))  # sample page numbers
+    # image_datas = map(load_image_data, file_paths)
+    # image_datas = list(enumerate(image_datas))  # sample page numbers
 
-    table_responses = synchronous_batched_system(
-        image_datas=image_datas,
-        pdf_name="test.pdf",
-        pdf_supabase_url="https://thinklude.ai",
-        client=anthropic_client,
-    )
-    save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
+    # table_responses = synchronous_batched_system(
+    #     image_datas=image_datas,
+    #     pdf_name="test.pdf",
+    #     pdf_supabase_url="https://thinklude.ai",
+    #     client=anthropic_client,
+    # )
+    # save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
+    # convert_response_to_df()
+    pass

@@ -112,10 +112,14 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         # TODO: HAHHAHAHA TIME TO PROCESS THE PDF BUT I DONT WANT TO CANCER MY CLAUDE
         try:
-            process_pdf(file_content, filename, url)
+            await process_pdf(file_content, filename, url)
             logger.info(f"File {filename} processed successfully")
         except Exception as e:
             logger.error(f"Error processing PDF: {str(e)}")
+            respoe = supabase_client.storage.from_(bucket_name).remove(
+                [response.path]
+            )
+
             return JSONResponse(
                 status_code=500, content={"error": f"Error processing PDF: {e}"}
             )
