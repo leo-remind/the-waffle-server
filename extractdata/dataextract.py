@@ -9,6 +9,7 @@ import psycopg2
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 from dotenv import load_dotenv
+from PIL import Image
 from pinecone import Pinecone
 from rich import print
 
@@ -243,8 +244,8 @@ def wait_for_batched_to_complete(batch_id, pdf_name: str, client, POLLING_RATE=1
         for result in final_results:
             try:
                 df_results = convert_response_to_df(result.result.message.content)
-            except:
-                print("Failed to convert response to DF")
+            except Exception as e:
+                print(f"Failed to convert response to DF {e}")
                 continue
 
             statsmeta = {}
