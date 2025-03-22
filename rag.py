@@ -160,6 +160,7 @@ def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3
 
     response = chain.invoke({"query": query, "schema": schema_str})
     log.info(f"generated_response: {response.content}")
+    raise Exception
 
     return response.content
 

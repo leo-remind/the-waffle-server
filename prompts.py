@@ -26,33 +26,40 @@ Expanded Query: “house OR home OR residence”
 Example Query: "West Bengal"
 Expanded Query: "West Bengal or WB"
 Step 3: Multilingual Expansion, finally I want you to expand the query to have a Hindi Equivalent prompt with Contextual, Semantic & Synonym expansion, thoughtfully expand the hindi prompt to ensure that all the potential cases are handled
-Step 4: Output the augmented query, enclosing all your work for this step within triple quotes (\"\"\").
+Step 4: Output the augmented query, enclosing all your work for this step within triple backticks (```).
 
 I want you to thoughtfully expand the query & want you to work out the reasoning as to why would certain expansions be valid, I want you to work out the reasoning before giving me the final augmented prompt, and do not give me the augmented prompt without working it out
-ensure that the final augmented query is enclosed within triple quotes (\"\"\")
+ensure that the final augmented query is enclosed within triple quotes (```)
 PROMPT: {query}
 """
 )
 
 SQL_GENERATION_PROMPT = PromptTemplate.from_template(
     """
-You will be provided with a user query.
-The queries you are executing is for a Statistical Database of Indian Surveys
-Your goal is to generate a valid SQL query to provide the best answer to the user.
-
-This is the table schema:
-It is provided in the format of
+You are a thoughtful, precise & highly capable assistant, your goal is to generate a correct PosgreSQL query, which will execute on the schema I have provided, you do not assume anything except the schema I have provided, and do not create a query which does not execute, think thoughtfully, step-by-step and generate a correct query for the schema provided, the queries you are executing are for a Statistical Database of Indian Survey data spanning different fields
+Following are some guidelines you should keep in mind
+1. Your table schema will be provided in the following format
+```sql
 -- table title: <which tells you what is the table, about and gives you some information about what each column might mean>
 <the posgresql schema for the table>
-Use this information together to get the most relevant table, & query it correctly
-PROMPT: {query}
-```sql
-{schema}
 ```
-
-Use this schema to generate as an output the SQL query. Ensure that the SQL query is null safe as some columns can be NULL
-Try not to calculate values which are not required due to potential loss in precision due to float or double precision
-Also all text fields can have values in any form, so utilise fuzzystrmatch package when you need to compare strings
+Utilise this, thoughtfully understand what each table is for, and understand what the user requires in the prompt, thoughtfully analyse each table and understand what each column stands for
+Example Input:
+```sql
+-- table title:percentage distribution of usually working persons by industry of work according to the (NIC-2008) for each State/Union Territory.
+CREATE TABLE industry_distribution (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state_ut VARCHAR(100) NOT NULL,
+    sector_type VARCHAR(20), 
+    industry_a DECIMAL(6,2), 
+    industry_b DECIMAL(6,2),
+    industry_c DECIMAL(6,2),
+    industry_d DECIMAL(6,2),
+    ....
+)
+```
+Example Inference: As I see that this table is about National Industrial Classification (NIC-2008) so these industry_a, industry_b are different classes of the NIC index, also the title says percentage so that means that all the values in the industry_a, industr_b ... would be in percentages, the State/UT will have the names of the relevant states, sector type might tell us about if it is rural or urban, or maybe some other form of sector segregation
+2. When comparing text fields, whenever required, utilise the levenshtein function from `fuzzystrmatch` package in PosgreSQL, compare strings with this function, and threshold matches on the value of `0.8` to see if we get a fuzzy match for the value, this will ensure that you can get some semblence of correct match, even if the exact match is not their
 ```sql
 -- This function calculates the Levenshtein distance between two strings:
 levenshtein(text source, text target, int ins_cost, int del_cost, int sub_cost) returns int
@@ -60,11 +67,18 @@ levenshtein(text source, text target) returns int
 levenshtein_less_equal(text source, text target, int ins_cost, int del_cost, int sub_cost, int max_d) returns int
 levenshtein_less_equal(text source, text target, int max_d) returns int
 ```
-Always use levenshtein to match strings using a threshold of value `0.8`, to match the strings, only use it when it is required
-Ensure that the query you write adheres to the schema given by me, and do not write any incorrect code, in case you do not find the correct column, use any combination of columsn which will be Semantically Correct
+3. Output the SQL query, enclosing all your work for this step within triple backticks (```).
 
-Can you make the sql query for the following prompt, only return the SQL query, nothing extra
-PROMPT: {query}
+I want you to thoughtfully think about each table provided to you, what kind of data it contains based on the table title, and how that data is being stored in the SQL schema, relate how which tables are relevant to the user prompt & I want you to work out the reasoning as to a valid methdology to query the tables to get the required data to fulfil the user prompt, I want you to work out the reasoning before giving me the final SQL query.
+Ensure the SQL query makes logical sense & it will execute based on the schema provided, do not return the SQL query until you are absolutely certain that:
+- The SQL query is valid & can be executed with the SCHEMA provided
+- The SQL query makes logical sense & helps answer the statistical prompt which the User has sent
+
+SCHEMA:
+```sql
+{schema}
+```
+PROMPT: {query}  
 """
 )
 
