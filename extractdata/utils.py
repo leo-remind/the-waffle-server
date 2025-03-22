@@ -201,6 +201,18 @@ def get_20_random_string():
     """
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
 
+def comment_the_schema(schema, dataframe):
+    """
+    Comment the schema with the column names.
+    """
+    editsch = schema.split("\n")
+    x = editsch.split("\n")[1:]
+
+    for i, col in enumerate(dataframe.columns):
+        x[i] = f"{x[i]} -- {', '.join(random.choices(list(set(col.values)), k=3))}"
+    schema = "\n".join(x)
+
+    return schema
 
 def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_client):
     table_data = response["tables"]
@@ -220,6 +232,8 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             schema, insert_command, typed_df = get_command_from(
                 df=table["df"], title=random_string
             )
+            commented_schema = comment_the_schema(schema, df=table["df"])
+            logger.info(f"Commented schema: {commented_schema}")
             typed_df = typed_df.replace({np.nan: None, "NONE": None})
             typed_df = typed_df.replace({None: "NULL"})
             command = schema
@@ -252,7 +266,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             cur.execute(
                 execu,
                 (
-                    schema,
+                    commented_schema,
                     table["title"],
                     random_string,
                     int(table["min_year"]) if table["min_year"] != "" else 0,
