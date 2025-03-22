@@ -126,47 +126,15 @@ results: {result}
 
 GRAPH_GENERATION_PROMPT = PromptTemplate.from_template(
     '''
-0. use `load_dotenv` from dotenv to load the 
-1. Create a flawless Python3 matplotlib program that:
-   - Retrieves data from Supabase
-   - Generates a beautiful visualization
-   - Saves to image file
-   - Uploads to public bucket
-   - Saves public URL to "SUPABASE_GRAPH_URL" variable
+Can you write vanilla svg & css, such that you show a simple visualisation of the following data, with data relevant to the query
+- ensure that all you use is vanilla svg & css
+- only return the svg
+- it should be good looking
+- ensure the svg is legible and well spaced
 
-2. Requirements:
-   - Your code will be executed as a standalone Python script
-   - The URL must be saved in "SUPABASE_GRAPH_URL" (mandatory global variable)
-   - The Image must be saved in the bucket as the name "TheWaffleGraph.png"
-   - Include robust error handling for all operations
-   - Ensure all imports are at the top of the file
-
-3. Data Processing:
-   - Thoroughly analyze table structure and content relevance
-   - Handle all edge cases (null values, missing data, outliers)
-   - Implement data validation before visualization
-   - Use appropriate data transformations
-
-4. Visualization Standards:
-   - Create visually striking, publication-quality graphs
-   - Ensure clear labels, legends, and appropriate color schemes
-   - Optimize for readability and insight extraction
-   - Match visualization type to data characteristics
-
-5. Technical Implementation:
-   - Credentials are loaded via python-dotenv from .env
-   - Available variables: SUPABASE_KEY, SUPABASE_PVT_KEY, SUPABASE_URL, SUPABASE_BUCKET_NAME
-   - Follow Supabase best practices for data retrieval
-   - Implement proper resource cleanup
-   - Make sure to call plt.savefig() BEFORE plt.show() if you use plt.show()
-   - Be sure to define SUPABASE_GRAPH_URL as a global variable
-
-ADD NO COMMENTS THE CODE SHOULD BE CONCISE, NO NOISE, NOTHING TO DISTURB THE CODE WHILE IT IS EXECUTED
-6. Context:
-
-SCHEMA:
-```sql
-{schema}
+DATA:
+```csv
+{data}
 ```
 
 PROMPT: {query}
