@@ -77,17 +77,19 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
     """
     Converts claude response to a pandas dataframe.
     """
-    try:
+    try:  
         text_block = message_content[0]
+        logger.info(f"TB: {text_block.text}")      
         try:
             data = json.loads(text_block.text)
         except TypeError:
             data = json.loads(text_block["text"])
+    
 
         ret_tups = []
         for conv_data in data:
             if not isinstance(conv_data, dict):
-                raise ValueError("Invalid response")
+                raise ValueError("Not a dict: Invalid response")
             # logger.info(conv_data)
             title = conv_data.get("title")
             min_year = conv_data.get("min_year")
@@ -120,13 +122,15 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                         logger.info(f"[red]Warning:[/red] {k} has length {len(v)}")
                         data[k] = data[k] + ["NONE"] * (base_len - len(v))
 
-            df = pd.DataFrame(conv_data.get("data"))
+            logger.info(f"Data: {data}")
+            df = pd.DataFrame(data)
 
             ret_tups.append(
                 {"title": title, "min_year": min_year, "max_year": max_year, "df": df}
             )
     except Exception as e:
         logger.info("Invalid response: {}".format(e))
+        print(conv_data.get("data"))
         raise ValueError("Invalid response")
     return ret_tups
 

@@ -179,6 +179,10 @@ async def asynchronous_batched_system(
         custom_id = f"IMAGE_REQ_{ident}_pg{page_no}"
         # image = otsu_threshold(image)
         image.save(bytes_stream, format="png")
+        # save image to disk
+        
+        # image.save(f"otsu_{custom_id}.png", format="pn")
+
         bytes_stream.seek(0)
         requests.append(
             get_claude_powered_req(bytes_stream.read(), custom_id=custom_id)
@@ -200,7 +204,7 @@ async def asynchronous_batched_system(
             )
             break
         logger.info(f"[{datetime.now()}] Batch {batch_id} is still processing...")
-        asyncio.sleep(POLLING_RATE)
+        await asyncio.sleep(POLLING_RATE)
 
     final_results = []
     for result in client.messages.batches.results(
@@ -215,12 +219,14 @@ async def asynchronous_batched_system(
 
     converted_results = []
     if final_results:
+        ec = 0
         for result in final_results:
             try:
                 df_results = convert_response_to_df(result.result.message.content)
             except Exception as e:
                 logger.info(f"Failed to convert response to DF: {e}")
-                continue
+                ec += 1
+                raise e
 
             statsmeta = {}
             statsmeta["input_tokens_used"] = result.result.message.usage.input_tokens
@@ -243,6 +249,8 @@ async def asynchronous_batched_system(
                 }
             )
 
+        if ec == len(final_results):
+            raise ValueError("All results failed to convert")
     else:
         raise ValueError("No results found")
 
