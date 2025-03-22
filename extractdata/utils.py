@@ -3,14 +3,16 @@ import os
 import random
 import string
 import time
+from logging import getLogger
 
 import numpy as np
 import pandas as pd
 import psycopg2
 from openai import OpenAI
-from rich import print
 
 from .prompts import QUICK_FIX_PROMPT
+
+logger = getLogger(__file__)
 
 
 def validate_json(json_data):
@@ -50,19 +52,19 @@ def fix_len_using_chatgpt(inp: dict, actual_len, broken_len) -> pd.DataFrame:
         store=True,
     )
     et = time.time()
-    # print(response.usage)
+    # logger.info(response.usage)
     resp = response.output[0].content[0].text
-    # print(resp)
+    # logger.info(resp)
     if "```" in resp:
         resp = resp.strip("```")
         resp = resp.strip("json")
 
-    # print(resp)
+    # logger.info(resp)
 
     if not validate_json(resp):
         raise ValueError("Invalid JSON yet again")
 
-    print(
+    logger.info(
         f"FL_QUICK took {et - st}s and {response.usage.total_tokens}tokens, costing ${calculate_cost(response.usage.input_tokens, response.usage.output_tokens, 'gpt-4o')}"
     )
     return json.loads(resp)
@@ -83,7 +85,7 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
         for conv_data in data:
             if not isinstance(conv_data, dict):
                 raise ValueError("Invalid response")
-            # print(conv_data)
+            # logger.info(conv_data)
             title = conv_data.get("title")
             min_year = conv_data.get("min_year")
             max_year = conv_data.get("max_year")
@@ -93,14 +95,16 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
             if len(set(all_lens)) != 1:
                 # most common length
                 base_len = max(set(all_lens), key=all_lens.count)
-                print(f"[CONVERTOR] Mismatched lengths! Most common len: {base_len}")
+                logger.info(
+                    f"[CONVERTOR] Mismatched lengths! Most common len: {base_len}"
+                )
                 for k, v in data.items():
                     if len(v) != base_len:
-                        print(f"[red]Warning:[/red] {k} has length {len(v)}")
-                        # print(f"ChatGPT Fast Query: {k}:{v}")
+                        logger.info(f"[red]Warning:[/red] {k} has length {len(v)}")
+                        # logger.info(f"ChatGPT Fast Query: {k}:{v}")
                         inp = {k: v}
                         fixed_col = fix_len_using_chatgpt(inp, base_len, len(v))
-                        print(f"Fixed column: {fixed_col}\n")
+                        logger.info(f"Fixed column: {fixed_col}\n")
                         data[k] = fixed_col.get(k)
 
             # if still not equal, then we have a problem
@@ -110,7 +114,7 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                 base_len = max([len(v) for v in data.values()])
                 for k, v in data.items():
                     if len(v) != base_len:
-                        print(f"[red]Warning:[/red] {k} has length {len(v)}")
+                        logger.info(f"[red]Warning:[/red] {k} has length {len(v)}")
                         data[k] = data[k] + ["NONE"] * (base_len - len(v))
 
             df = pd.DataFrame(conv_data.get("data"))
@@ -119,7 +123,7 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                 {"title": title, "min_year": min_year, "max_year": max_year, "df": df}
             )
     except Exception as e:
-        print("Invalid response: {}".format(e))
+        logger.info("Invalid response: {}".format(e))
         raise ValueError("Invalid response")
     return ret_tups
 
@@ -171,7 +175,7 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
 
     # now infer
     df = df.infer_objects()
-    # print(df.dtypes)
+    # logger.info(df.dtypes)
     # convert to sql_schema in the form col_name TYPE, col_name TYPE, ...
 
     # sql_schema = ", ".join(
@@ -182,7 +186,7 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
 
     insert_command = f"""INSERT INTO "{title}" ({", ".join(['"' + col + '"' for col in df.columns])}) VALUES 
     ({", ".join(["%s" for _ in df.columns])});"""
-    sql_command = sql_command.replace("CREATE TABLE", f"CREATE TABLE IF NOT EXISTS")
+    sql_command = sql_command.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
     sql_command = sql_command.replace('"index" INTEGER', '"index" SERIAL PRIMARY KEY')
 
     return sql_command, insert_command, df
@@ -202,8 +206,8 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
     for table in table_data:
         cur = supabase_client.cursor()
 
-        print("=" * 80, "\n\n")
-        print(
+        logger.info(("=" * 80) + "\n\n")
+        logger.info(
             f"Table: '{table['title']}', Year Range: ({table['min_year']}-{table['max_year']})"
         )
 
@@ -216,9 +220,9 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             typed_df = typed_df.replace({np.nan: None, "NONE": None})
             typed_df = typed_df.replace({None: "NULL"})
             command = schema
-            print(f"\n[bold]{command}[/bold]\n")
+            logger.info(f"\n[bold]{command}[/bold]\n")
             cur.execute(command)
-            print(f"\n[bold]{insert_command}[/bold]\n")
+            logger.info(f"\n[bold]{insert_command}[/bold]\n")
             c = 1
             for row in typed_df.itertuples(index=False, name=None):
                 row_f = []
@@ -228,9 +232,9 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                     else:
                         row_f.append(str(r))
 
-                # print(f"{c}: {row_f} with {len(row_f)}")
+                # logger.info(f"{c}: {row_f} with {len(row_f)}")
 
-                # print(insert_command % tuple(row_f))
+                # logger.info(insert_command % tuple(row_f))
 
                 cur.execute(insert_command, tuple(row_f))
                 c += 1
@@ -264,12 +268,13 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                     "min_year": table["min_year"],
                     "max_year": table["max_year"],
                     "supabase_table_name": random_string,
+                    "pdf_name": response["pdf_name"],
                 }
             )
 
         except (Exception, psycopg2.DatabaseError) as error:
-            print(f"ERROR: {error}")
-            cur.execute(f"ROLLBACK")
+            logger.info(f"ERROR: {error}")
+            cur.execute("ROLLBACK")
 
             raise error
         finally:
@@ -280,7 +285,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
 
         index.upsert_records("", pc_upsert)
     except Exception as e:
-        print(f"Failed to upsert to Pinecone: {e}")
+        logger.info(f"Failed to upsert to Pinecone: {e}")
         raise e
 
 

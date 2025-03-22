@@ -16,7 +16,7 @@ load_dotenv()
 
 FORMAT = "%(message)s"
 logging.basicConfig(
-    level="DEBUG", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 logger = logging.getLogger(__file__)
 
@@ -82,7 +82,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             process_pdf(file_content, filename, url)
         except Exception as e:
             return JSONResponse(
-                status_code=500, content={"error": f"error in processing pdf {e}"}
+                status_code=500, content={"error": f"error in processing pdf: {e}"}
             )
 
         return JSONResponse(
@@ -98,6 +98,23 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 """
 
+@app.get("/available-pdfs")
+async def available_pdfs():
+    try:
+        response = supabase_client.storage.from_(bucket_name).list("")
+
+        return JSONResponse(
+            status_code=200,
+            content={"files": [x for x in response if not x["name"].startswith(".")]},
+        )
+
+    except supabase.StorageException as e:
+        logger.error(f"Supabase storage error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Storage error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error getting available pdfs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get available pdfs: {str(e)}")
+    
 
 if __name__ == "__main__":
     import uvicorn
