@@ -42,7 +42,7 @@ logger.debug("initialized feature extractor, detection model and anthropic clien
 WHITE_PCT_THRESHOLD = 96.0
 
 
-def pdf_to_images(pdf: bytes, dpi: int = 400) -> list[Image]:
+def pdf_to_images(pdf: bytes, dpi: int = 300) -> list[Image]:
     """
     Convert PDF bytes to a list of PIL Image objects
 

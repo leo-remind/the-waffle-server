@@ -77,14 +77,13 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
     """
     Converts claude response to a pandas dataframe.
     """
-    try:  
+    try:
         text_block = message_content[0]
-        logger.info(f"TB: {text_block.text}")      
+        logger.info(f"TB: {text_block.text}")
         try:
             data = json.loads(text_block.text)
         except TypeError:
             data = json.loads(text_block["text"])
-    
 
         ret_tups = []
         for conv_data in data:
@@ -205,15 +204,20 @@ def get_20_random_string():
     """
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
 
+
 def comment_the_schema(schema, df):
     """
     Comment the schema with the column names.
     """
+    splitschm = schema.split("\n")
     x = schema.split("\n")[1:]
 
-    for i, col in enumerate(df.columns):
-        x[i] = f"{x[i]} -- {', '.join(random.choices(list(set(col.values)), k=3))}"
-    schema = "\n".join(x)
+    for i, col in enumerate(df.columns, start=1):
+        x[i] = (
+            f"{x[i]}    -- {', '.join(random.choices([str(x) for x in set(df[col].values)], k=3))}"
+        )
+    
+    schema = splitschm[0] + "\n" + "\n".join(x)
 
     return schema
 
@@ -283,23 +287,26 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                 ),
             )
 
-            index.upsert_records("", [
-                {
-                    "id": random_string,
-                    "text": table["title"],
-                    "table_heading": table["title"],
-                    "min_year": table["min_year"],
-                    "max_year": table["max_year"],
-                    "supabase_table_name": random_string,
-                    "pdf_name": response["pdf_name"],
-                }
-            ])
+            index.upsert_records(
+                "",
+                [
+                    {
+                        "id": random_string,
+                        "text": table["title"],
+                        "table_heading": table["title"],
+                        "min_year": table["min_year"],
+                        "max_year": table["max_year"],
+                        "supabase_table_name": random_string,
+                        "pdf_name": response["pdf_name"],
+                    }
+                ],
+            )
 
         except (Exception, psycopg2.DatabaseError) as error:
             logger.info(f"ERROR: {error}")
             cur.execute("ROLLBACK")
             raise error
-        
+
         finally:
             cur.close()
             supabase_client.commit()
@@ -309,7 +316,15 @@ def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_cli
     logger.info(f"started thread pool with {N_THREADS}")
     with ThreadPoolExecutor(N_THREADS) as exe:
 
-        futures = {exe.submit(save_single_to_supabase_and_pinecone, x, supabase_client, pinecone_client): x for x in table_responses}
+        futures = {
+            exe.submit(
+                save_single_to_supabase_and_pinecone,
+                x,
+                supabase_client,
+                pinecone_client,
+            ): x
+            for x in table_responses
+        }
 
         for future in as_completed(futures):
             try:

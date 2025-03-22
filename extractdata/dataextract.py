@@ -163,7 +163,7 @@ async def asynchronous_batched_system(
     pdf_name: str,
     pdf_supabase_url: str,
     client: anthropic.Anthropic,
-    POLLING_RATE=12,
+    POLLING_RATE=10,
 ) -> any:
     """
     Dispatch several batch requests, and then wait until all the requests are complete.
@@ -180,8 +180,7 @@ async def asynchronous_batched_system(
         # image = otsu_threshold(image)
         image.save(bytes_stream, format="png")
         # save image to disk
-        
-        # image.save(f"otsu_{custom_id}.png", format="pn")
+        image.save(f"otsu_{custom_id}.png", format="png")
 
         bytes_stream.seek(0)
         requests.append(
