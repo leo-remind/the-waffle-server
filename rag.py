@@ -25,7 +25,9 @@ from prompts import (
 load_dotenv()
 logger = logging.getLogger(__file__)
 
-MODEL_NAME_RE = re.compile(r"SELECT.*?FROM\s*(.{20}).*", re.IGNORECASE)
+MODEL_NAME_RE = re.compile(
+    r"SELECT.*?FROM\s*\"?(.{20})\"?.*", re.IGNORECASE | re.MULTILINE | re.DOTALL
+)
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")

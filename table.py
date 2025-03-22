@@ -188,9 +188,7 @@ def filter_pages_with_tables(
             continue
 
         logger.debug(
-            f"\t{no}: has {len(result['scores'])} tables, scores = {
-                ', '.join('%.2f' % i for i in result['scores'])
-            }, white pct = {white_pct}"
+            f"\t{no}: has {len(result['scores'])} tables, scores = {', '.join('%.2f' % i for i in result['scores'])}, white pct = {white_pct}"
         )
         with_tables.append((no, image_original))
 
