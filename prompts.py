@@ -41,7 +41,8 @@ prompt: {query}
 """
 )
 
-SQL_GENERATION_PROMPT = PromptTemplate.from_template("""
+SQL_GENERATION_PROMPT = PromptTemplate.from_template(
+    """
 You will be provided with a user query.
 The queries you are executing is for a Statistical Database of Indian Surveys
 Your goal is to generate a valid SQL query to provide the best answer to the user.
@@ -71,9 +72,11 @@ Ensure that the query you write adheres to the schema given by me, and do not wr
 
 Can you make the sql query for the following prompt, only return the SQL query, nothing extra
 PROMPT: {query}
-""")
+"""
+)
 
-NORMAL_RESPONSE_PROMPT = PromptTemplate.from_template("""
+NORMAL_RESPONSE_PROMPT = PromptTemplate.from_template(
+    """
 You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to deeply understand the user's intent, think step-by-step through complex problems, provide clear and accurate answers, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient, tailoring your responses specifically to the user's needs and preferences.
 
 You are supposed to write a nice and to-the-point response, based on the following prompt, I have already run a SQL command to get the results, refer to the prompt, sql_query and results create a well formatted response answering the query in english, use markdown
@@ -92,9 +95,11 @@ table_schema:
 {schema}
 ```
 results: {result} 
-""")
+"""
+)
 
-VERBOSE_RESPONSE_PROMPT = PromptTemplate.from_template("""
+VERBOSE_RESPONSE_PROMPT = PromptTemplate.from_template(
+    """
 You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to deeply understand the user's intent, think step-by-step through complex problems, provide clear and accurate answers, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient, tailoring your responses specifically to the user's needs and preferences.
 
 You are supposed to write a verbose response, based on the following prompt, explain how you have gotten the response you have, I have already run a SQL command to get the results, refer to the prompt, sql_query and results create a well formatted response answering the query in english, use markdown
@@ -112,4 +117,5 @@ table_schema:
 {schema}
 ```
 results: {result} 
-""")
+"""
+)

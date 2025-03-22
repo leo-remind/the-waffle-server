@@ -5,18 +5,18 @@ import string
 import time
 
 import numpy as np
-from openai import OpenAI
 import pandas as pd
 import psycopg2
+from openai import OpenAI
 from rich import print
 
-from prompts import QUICK_FIX_PROMPT
+from .prompts import QUICK_FIX_PROMPT
 
 
 def validate_json(json_data):
     try:
         json.loads(json_data)
-    except ValueError as e:
+    except ValueError as _:
         return False
     return True
 
@@ -63,7 +63,7 @@ def fix_len_using_chatgpt(inp: dict, actual_len, broken_len) -> pd.DataFrame:
         raise ValueError("Invalid JSON yet again")
 
     print(
-        f"FL_QUICK took {et - st}s and {response.usage.total_tokens}tokens, costing ${calculate_cost(response.usage.input_tokens, response.usage.output_tokens, "gpt-4o")}"
+        f"FL_QUICK took {et - st}s and {response.usage.total_tokens}tokens, costing ${calculate_cost(response.usage.input_tokens, response.usage.output_tokens, 'gpt-4o')}"
     )
     return json.loads(resp)
 
@@ -78,7 +78,7 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
             data = json.loads(text_block.text)
         except TypeError:
             data = json.loads(text_block["text"])
-        
+
         ret_tups = []
         for conv_data in data:
             if not isinstance(conv_data, dict):
@@ -112,9 +112,8 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                     if len(v) != base_len:
                         print(f"[red]Warning:[/red] {k} has length {len(v)}")
                         data[k] = data[k] + ["NONE"] * (base_len - len(v))
-            
-            df = pd.DataFrame(conv_data.get("data"))
 
+            df = pd.DataFrame(conv_data.get("data"))
 
             ret_tups.append(
                 {"title": title, "min_year": min_year, "max_year": max_year, "df": df}
@@ -181,7 +180,7 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
 
     sql_command = pd.io.sql.get_schema(df.reset_index(), title)
 
-    insert_command = f"""INSERT INTO "{title}" ({", ".join(['"'+col+'"' for col in df.columns])}) VALUES 
+    insert_command = f"""INSERT INTO "{title}" ({", ".join(['"' + col + '"' for col in df.columns])}) VALUES 
     ({", ".join(["%s" for _ in df.columns])});"""
     sql_command = sql_command.replace("CREATE TABLE", f"CREATE TABLE IF NOT EXISTS")
     sql_command = sql_command.replace('"index" INTEGER', '"index" SERIAL PRIMARY KEY')
@@ -197,7 +196,6 @@ def get_20_random_string():
 
 
 def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_client):
-
     table_data = response["tables"]
     pc_upsert = []
 
@@ -206,7 +204,7 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
 
         print("=" * 80, "\n\n")
         print(
-            f"Table: '{table["title"]}', Year Range: ({table["min_year"]}-{table["max_year"]})"
+            f"Table: '{table['title']}', Year Range: ({table['min_year']}-{table['max_year']})"
         )
 
         try:
@@ -229,24 +227,39 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
                         row_f.append(None)
                     else:
                         row_f.append(str(r))
-                
+
                 # print(f"{c}: {row_f} with {len(row_f)}")
-                
+
                 # print(insert_command % tuple(row_f))
 
                 cur.execute(insert_command, tuple(row_f))
                 c += 1
-            
+
             # add to metadata
-            execu = f"INSERT INTO \"METADATA\" (schema, table_heading, supabase_table_name, min_year, max_year, pdf_title, pdf_url, page_number) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+            execu = (
+                'INSERT INTO "METADATA"'
+                + " (schema, table_heading, supabase_table_name, min_year, max_year, pdf_title, pdf_url, page_number)"
+                + " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+            )
+
             cur.execute(
-                execu, (schema, table['title'], random_string, int(table['min_year']) if table['min_year'] != "" else 0, int(table['max_year']) if table['max_year'] != "" else 3000, response['pdf_name'], response['pdf_url'], int(response['page_number']))
+                execu,
+                (
+                    schema,
+                    table["title"],
+                    random_string,
+                    int(table["min_year"]) if table["min_year"] != "" else 0,
+                    int(table["max_year"]) if table["max_year"] != "" else 3000,
+                    response["pdf_name"],
+                    response["pdf_url"],
+                    int(response["page_number"]),
+                ),
             )
 
             pc_upsert.append(
                 {
                     "id": random_string,
-                    "text": table['title'],
+                    "text": table["title"],
                     "table_heading": table["title"],
                     "min_year": table["min_year"],
                     "max_year": table["max_year"],
@@ -255,10 +268,9 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
             )
 
         except (Exception, psycopg2.DatabaseError) as error:
-
             print(f"ERROR: {error}")
             cur.execute(f"ROLLBACK")
-            
+
             raise error
         finally:
             cur.close()
@@ -266,13 +278,11 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
     try:
         index = pinecone_client.Index("the-waffle")
 
-        index.upsert_records(
-            "", pc_upsert
-        )
+        index.upsert_records("", pc_upsert)
     except Exception as e:
         print(f"Failed to upsert to Pinecone: {e}")
         raise e
-    
+
 
 def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client):
     for response in table_responses:

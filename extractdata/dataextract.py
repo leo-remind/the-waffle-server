@@ -1,37 +1,29 @@
+import base64
+import os
+import time
 from datetime import datetime
 from pathlib import Path
-import time
-import pandas as pd
-from dotenv import load_dotenv
+
 import anthropic
-import os
-import base64
 import psycopg2
-from rich import print
-import supabase
-from pathvalidate import sanitize_filepath
-from pinecone import Pinecone
-from PIL import Image
-
-from utils import (
-    calculate_cost,
-    convert_response_to_df,
-    get_20_random_string,
-    get_command_from,
-    save_to_supabase_and_pinecone,
-)
-
-from prompts import EXTRACT_PROMPT
-
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
+from dotenv import load_dotenv
+from pinecone import Pinecone
+from rich import print
 
+from .prompts import EXTRACT_PROMPT
+from .utils import (
+    calculate_cost,
+    convert_response_to_df,
+    save_to_supabase_and_pinecone,
+)
 
 load_dotenv()
 
 
 def claude_powered_extraction(
-    image_data: bytes, client: anthropic.Anthropic
+    image_data: bytes, client: anthropic.Anthropic, file_path: str
 ) -> dict[str, any]:
     """
     Returns a data frame given image data bytes. It will use an LLM to extract the data.
@@ -188,8 +180,8 @@ def synchronous_batched_system(
         for result in final_results:
             try:
                 df_results = convert_response_to_df(result.result.message.content)
-            except:
-                print("Failed to convert response to DF")
+            except Exception as e:
+                print(f"Failed to convert response to DF: {e}")
                 continue
 
             statsmeta = {}
@@ -281,8 +273,6 @@ def wait_for_batched_to_complete(batch_id, pdf_name: str, client, POLLING_RATE=1
 
 
 if __name__ == "__main__":
-
-
     supabase_client = psycopg2.connect(
         database=os.environ.get("PG_DBNAME"),
         user=os.environ.get("PG_USER"),

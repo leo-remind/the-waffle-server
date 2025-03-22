@@ -3,9 +3,9 @@ import os
 from asyncio import sleep
 from typing import List
 
-from fastapi import WebSocket
 import psycopg2
 from dotenv import load_dotenv
+from fastapi import WebSocket
 from langchain_openai import ChatOpenAI
 from pinecone import Pinecone
 from rich.pretty import pretty_repr
@@ -45,14 +45,23 @@ chatgpt_o3_mini = ChatOpenAI(model="o3-mini")
 stream_fmt = lambda a: f"data: {a}\n\n"
 
 
-async def query_rag(websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False):
+async def query_rag(
+    websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False
+):
     await websocket.send_text("stream: Finding most relevant tables\n\n")
     query = query_augmentation(og_query)
     tables = find_k_relevant_tables(query)
-    await websocket.send_text(f"stream: Generating response from {len(tables)} relevant table/s\n\n")
+    await websocket.send_text(
+        f"stream: Generating response from {len(tables)} relevant table/s\n\n"
+    )
     await sleep(0.1)
     schemas = get_table_schemas(tables)
-    schema_str = "\n\n".join([f"-- table topic: {table['text']}\n{schema}" for table, schema in zip(tables, schemas)])
+    schema_str = "\n\n".join(
+        [
+            f"-- table topic: {table['text']}\n{schema}"
+            for table, schema in zip(tables, schemas)
+        ]
+    )
     sql_query = generate_sql_query(query, schema_str)
     await websocket.send_text(f"stream: Querying SQL Database with query\n\n")
     await sleep(0.1)
