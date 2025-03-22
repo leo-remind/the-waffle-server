@@ -24,4 +24,5 @@ dependencies = [
     "pinecone>=6.0.2",
     "psycopg2-binary>=2.9.10",
     "pandas>=2.2.3",
+    "langchain-anthropic>=0.3.10",
 ]
