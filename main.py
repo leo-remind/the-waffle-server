@@ -133,6 +133,27 @@ async def upload_pdf(file: UploadFile = File(...)):
         logger.error(f"Error uploading file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+
+@app.get("/available-pdfs")
+async def available_pdfs():
+    try:
+        response = supabase_client.storage.from_(bucket_name).list("")
+
+        return JSONResponse(
+            status_code=200,
+            content={"files": [x for x in response if not x["name"].startswith(".")]},
+        )
+
+    except supabase.StorageException as e:
+        logger.error(f"Supabase storage error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Storage error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error getting available pdfs: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get available pdfs: {str(e)}"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
 
