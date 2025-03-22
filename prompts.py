@@ -126,6 +126,7 @@ results: {result}
 
 GRAPH_GENERATION_PROMPT = PromptTemplate.from_template(
     '''
+0. use `load_dotenv` from dotenv to load the 
 1. Create a flawless Python3 matplotlib program that:
    - Retrieves data from Supabase
    - Generates a beautiful visualization
@@ -134,9 +135,11 @@ GRAPH_GENERATION_PROMPT = PromptTemplate.from_template(
    - Saves public URL to "SUPABASE_GRAPH_URL" variable
 
 2. Requirements:
-   - Your code will be executed via `exec()` - error-free execution is critical
-   - The URL must be saved in "SUPABASE_GRAPH_URL" (mandatory)
+   - Your code will be executed as a standalone Python script
+   - The URL must be saved in "SUPABASE_GRAPH_URL" (mandatory global variable)
+   - The Image must be saved in the bucket as the name "TheWaffleGraph.png"
    - Include robust error handling for all operations
+   - Ensure all imports are at the top of the file
 
 3. Data Processing:
    - Thoroughly analyze table structure and content relevance
@@ -155,9 +158,11 @@ GRAPH_GENERATION_PROMPT = PromptTemplate.from_template(
    - Available variables: SUPABASE_KEY, SUPABASE_PVT_KEY, SUPABASE_URL, SUPABASE_BUCKET_NAME
    - Follow Supabase best practices for data retrieval
    - Implement proper resource cleanup
+   - Make sure to call plt.savefig() BEFORE plt.show() if you use plt.show()
+   - Be sure to define SUPABASE_GRAPH_URL as a global variable
 
+ADD NO COMMENTS THE CODE SHOULD BE CONCISE, NO NOISE, NOTHING TO DISTURB THE CODE WHILE IT IS EXECUTED
 6. Context:
-```
 
 SCHEMA:
 ```sql

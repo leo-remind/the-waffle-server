@@ -324,22 +324,45 @@ def generate_response(
     return response.content
 
 
+import tempfile
+import os
+from typing import Dict, Any, Optional
+
 def graph_data(
+    table: str,
     query: str,
     sql_query: str,
     schema: str,
     llm: ChatOpenAI = claude_3_7,
 ):
-    chain = GRAPH_GENERATION_PROMPT | llm
+    pass
+    
 
-    response = chain.invoke(
-        {"query": query, "sql_query": sql_query, "schema": schema},
-        max_tokens=16000
-    )
-
-    logger.info(response.content)
-    SUPABASE_GRAPH_URL = None
-    code = extract_first_code_block(response.content)
-    exec(code)
-    print(SUPABASE_GRAPH_URL)
-    return SUPABASE_GRAPH_URL
+def get_table_data_as_csv(table_name, output_file="data.csv"):
+    """
+    Fetch data from a Supabase table and save it as CSV
+    
+    Parameters:
+    table_name (str): Name of the table to fetch data from
+    output_file (str): Name of the CSV file to save data to
+    """
+    try:
+        # Fetch data from the table
+        response = supabase.table(table_name).select("*").execute()
+        
+        # Check if there's data
+        if not response.data:
+            print(f"No data found in table '{table_name}'")
+            return False
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(response.data)
+        
+        # Save to CSV
+        df.to_csv(output_file, index=False)
+        print(f"Data saved to {output_file}")
+        return True
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
