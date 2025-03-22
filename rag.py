@@ -125,7 +125,7 @@ def get_table_as_json(table_name: str) -> str:
 
     resp = (
         supabase.table("METADATA")
-        .select("table_heading, pdf_url, page_number")
+        .select("supabase_table_name", "table_heading, pdf_url, page_number")
         .eq("supabase_table_name", table_name)
         .execute()
     )
