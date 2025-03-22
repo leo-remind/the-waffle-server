@@ -59,13 +59,29 @@ def stream_fmt(a):
 
 
 async def query_rag(
-    websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False
+    websocket: WebSocket,
+    og_query: str,
+    verbose: bool = False,
+    graph: bool = False,
+    pdf_name: str | None = None,
 ):
     await websocket.send_text(
         json.dumps({"isStreaming": True, "message": "Finding most relevant tables\n\n"})
     )
     query = query_augmentation(og_query)
-    tables = find_k_relevant_tables(query)
+    tables = find_k_relevant_tables(query, pdf_name)
+
+    if not tables:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "isStreaming": False,
+                    "message": "no relevant tables found",
+                    "tables": [],
+                }
+            )
+        )
+
     await websocket.send_text(
         json.dumps(
             {
@@ -82,7 +98,7 @@ async def query_rag(
             for table, schema in zip(tables, schemas)
         ]
     )
-    sql_query = generate_sql_query(query, schema_str)
+    sql_reasoning, sql_query = generate_sql_query(query, schema_str)
     await websocket.send_text(
         json.dumps({"isStreaming": True, "message": "Querying SQL Database with query"})
     )
@@ -96,7 +112,7 @@ async def query_rag(
     )
     await sleep(0.1)
     response = generate_response(
-        og_query, results, sql_query, schema_str, verbose=verbose, graph=graph
+        og_query, results, sql_reasoning, verbose=verbose, graph=graph
     )
     model_name_match = MODEL_NAME_RE.match(sql_query)
     if model_name_match:
@@ -142,12 +158,21 @@ def get_table_as_json(table_name: str) -> str:
     )
 
 
-def find_k_relevant_tables(query: str, top_k: int = 3) -> List[str]:
+def find_k_relevant_tables(
+    query: str, pdf_name: str | None = None, top_k: int = 3
+) -> List[str]:
     index = pc.Index("the-waffle")
+    query = {
+        "inputs": {"text": query},
+        "top_k": top_k * 4,
+    }
+    if pdf_name is not None:
+        logger.info(f"FILTER pinecone on pdf_name: {pdf_name}")
+        query["filter"] = {"pdf_name": pdf_name}
 
     results = index.search_records(
         namespace="",
-        query={"inputs": {"text": query}, "top_k": top_k * 4},
+        query=query,
         fields=["text", "supabase_table_name"],
         rerank={"model": "bge-reranker-v2-m3", "top_n": top_k, "rank_fields": ["text"]},
     )
@@ -231,7 +256,7 @@ def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3
     sql_query = extract_first_code_block(response.content)
     logger.info(f"generated sql query:\n {sql_query}")
 
-    return sql_query
+    return response.content, sql_query
 
 
 def execute_sql_query(sql_query: str):
@@ -253,8 +278,7 @@ def execute_sql_query(sql_query: str):
 def generate_response(
     query: str,
     results: any,
-    sql_query: str,
-    schema_str: str,
+    sql_reasoning: str,
     llm: ChatOpenAI = chatgpt_o3_mini,
     verbose: bool = False,
     graph: bool = False,
@@ -266,8 +290,7 @@ def generate_response(
         {
             "query": query,
             "result": str(results),
-            "sql_query": sql_query,
-            "schema": schema_str,
+            "sql_reasoning": sql_reasoning,
         }
     )
 

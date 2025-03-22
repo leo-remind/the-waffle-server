@@ -83,26 +83,19 @@ PROMPT: {query}
 )
 
 NORMAL_RESPONSE_PROMPT = PromptTemplate.from_template(
-    """
-You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to deeply understand the user's intent, think step-by-step through complex problems, provide clear and accurate answers, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient, tailoring your responses specifically to the user's needs and preferences.
+    '''
+You are a highly capable, thoughtful, and precise assistant for the Ministry of Statistics in India. Your goal is to answer the user's prompt based on the results obtained by executing the SQL query, which potentially answers the user's query by deeply understanding the user's intent, provide a nice, friendly to-the-point concise reply, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient, tailoring your responses specifically to the user's needs and preferences.
+You should utilise the SQL QUERY REASONING to understand the RESULT, and the format of the RESULT, what values the RESULT potentially represents & relate it to the query PROMPT,
 
-You are supposed to write a nice and to-the-point response, based on the following prompt, I have already run a SQL command to get the results, refer to the prompt, sql_query and results create a well formatted response answering the query in english, use markdown
-You are not supposed to talk about the SQL query & explain that, the user should not know about the SQL query
+Ensure that your answer is precise & correct based on the information I have provided, answering the user PROMPT concisely & precisely with a friendly tone
 
-I have provided table schema:
-It is provided in the format of
--- table title: <which tells you what is the table, about and gives you some information about what each column might mean>
-<the posgresql schema for the table>
-Utilise this information about the SQL table & query together to infer exactly what the query was doing, and what kind of values are in each column, use it to give a precise response
-
-prompt: {query}
-sql_query: `{sql_query}`
-table_schema: 
-```sql
-{schema}
-```
-results: {result} 
+PROMPT: {query}
+SQL QUERY REASONING:
 """
+{sql_reasoning}
+"""
+SQL RESULTS: {result} 
+'''
 )
 
 VERBOSE_RESPONSE_PROMPT = PromptTemplate.from_template(
