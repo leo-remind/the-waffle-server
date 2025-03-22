@@ -3,6 +3,7 @@ import os
 import random
 import string
 import time
+from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 
 import numpy as np
@@ -13,6 +14,8 @@ from openai import OpenAI
 from .prompts import QUICK_FIX_PROMPT
 
 logger = getLogger(__file__)
+
+N_THREADS = 10
 
 
 def validate_json(json_data):
@@ -290,5 +293,11 @@ def save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_cli
 
 
 def save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client):
-    for response in table_responses:
-        save_single_to_supabase_and_pinecone(response, supabase_client, pinecone_client)
+    logger.info(f"started thread pool with {N_THREADS}")
+    with ThreadPoolExecutor(N_THREADS) as exe:
+        exe.map(
+            lambda x: save_single_to_supabase_and_pinecone(
+                x, supabase_client, pinecone_client
+            ),
+            table_responses,
+        )
