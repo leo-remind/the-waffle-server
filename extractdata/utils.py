@@ -85,6 +85,16 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
         except TypeError:
             data = json.loads(text_block["text"])
 
+        if not isinstance(data, list):
+            raise ValueError("Not a list: Invalid response")
+        if len(data) == 0:
+            return None
+        if len(data) == 1:
+            if not isinstance(data[0], dict):
+                raise ValueError("Not a dict: Invalid response")
+            if not data[0]:     # empty dict
+                return None
+        
         ret_tups = []
         for conv_data in data:
             if not isinstance(conv_data, dict):
