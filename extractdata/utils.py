@@ -132,6 +132,9 @@ def convert_response_to_df(message_content: list) -> list[pd.DataFrame]:
                         data[k] = data[k] + ["NONE"] * (base_len - len(v))
 
             logger.info(f"Data: {data}")
+            
+            # check for unique keys
+
             df = pd.DataFrame(data)
 
             ret_tups.append(
@@ -197,6 +200,16 @@ def get_command_from(df: pd.DataFrame, title) -> dict:
     # sql_schema = ", ".join(
     #     [f"{col} {postgressql_type_map.get(df[col].dtype, "TEXT")}" for col in df.columns]
     # )
+
+    max_col_len = 63
+
+    c = 0
+    for col in df.columns:
+        if len(col) > max_col_len:
+            df[col[:max_col_len-10] + f"_{c:04}"] = df[col]
+            df.drop(columns=[col], inplace=True)
+        
+        c += 1
 
     sql_command = pd.io.sql.get_schema(df.reset_index(), title)
 

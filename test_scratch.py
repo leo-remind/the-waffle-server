@@ -1,3 +1,23 @@
-import json
+import json 
+from extractdata.utils import convert_response_to_df, get_command_from
+from rich import print
+import pandas as pd
 
-ee = json.loads('[{\"title\": \"Sample size in urban areas in each of the quarter of Survey period July 2023 - June 2024\", \"min_year\": 2023, \"max_year\": 2024, \"data\": {\"survey_period\": [\"July- September 2023\", \"October- December 2023\", \"January - March 2024\", \"April - June 2024\"], \"fsu_ufs_blocks\": [5706, 5697, 5706, 5735], \"household\": [44738, 44544, 44998, 45016], \"person\": [1,70,004, 1,69,209, 1,71,207, 1,71,121]}}]"}]')
+class FakeResponse:
+    def __init__(self, json_data):
+        self.text = json_data
+
+with open("cook.json", "r") as f:
+    cooked = json.load(f)
+
+# print(cooked)
+
+f = json.loads(cooked["result"]["message"]["content"][0]["text"])[0]["data"]
+# print(f)
+df = pd.DataFrame(f)
+
+print(df)
+
+a, insc, dft = get_command_from(df, "e")
+
+print(a)

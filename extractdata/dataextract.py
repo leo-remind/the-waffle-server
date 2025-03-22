@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import io
+import json
 import os
 import time
 from datetime import datetime
@@ -193,32 +194,34 @@ def load_image_data(file_path):
 
 
 if __name__ == "__main__":
-    supabase_client = psycopg2.connect(
-        database=os.environ.get("PG_DBNAME"),
-        user=os.environ.get("PG_USER"),
-        password=os.environ.get("PG_PASSWORD"),
-        host=os.environ.get("PG_HOST"),
-        port=os.environ.get("PG_PORT"),
-        sslmode="require",
-    )
-    logger.info("Connected to Supabase")
-    anthropic_client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-    )
-    pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+    # supabase_client = psycopg2.connect(
+    #     database=os.environ.get("PG_DBNAME"),
+    #     user=os.environ.get("PG_USER"),
+    #     password=os.environ.get("PG_PASSWORD"),
+    #     host=os.environ.get("PG_HOST"),
+    #     port=os.environ.get("PG_PORT"),
+    #     sslmode="require",
+    # )
+    # logger.info("Connected to Supabase")
+    # anthropic_client = anthropic.Anthropic(
+    #     api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    # )
+    # pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
 
-    file_paths = list(Path("pngs").glob("*.png"))
-    # file_paths = ["pngs/notitle.png"]
+    # file_paths = list(Path("pngs").glob("*.png"))
+    # # file_paths = ["pngs/notitle.png"]
 
-    logger.info(f"Processing {len(file_paths)} images...")
+    # logger.info(f"Processing {len(file_paths)} images...")
 
-    image_datas = map(load_image_data, file_paths)
-    image_datas = list(enumerate(image_datas))  # sample page numbers
+    # image_datas = map(load_image_data, file_paths)
+    # image_datas = list(enumerate(image_datas))  # sample page numbers
 
-    table_responses = synchronous_batched_system(
-        image_datas=image_datas,
-        pdf_name="test.pdf",
-        pdf_supabase_url="https://thinklude.ai",
-        client=anthropic_client,
-    )
-    save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
+    # table_responses = synchronous_batched_system(
+    #     image_datas=image_datas,
+    #     pdf_name="test.pdf",
+    #     pdf_supabase_url="https://thinklude.ai",
+    #     client=anthropic_client,
+    # )
+    # save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
+    # convert_response_to_df()
+    pass
