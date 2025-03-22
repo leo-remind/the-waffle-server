@@ -80,7 +80,7 @@ async def query_rag(
             for table, schema in zip(tables, schemas)
         ]
     )
-    sql_query = generate_sql_query(query, schema_str)
+    sql_reasoning, sql_query = generate_sql_query(query, schema_str)
     await websocket.send_text(
         json.dumps({"isStreaming": True, "message": "Querying SQL Database with query"})
     )
@@ -94,7 +94,7 @@ async def query_rag(
     )
     await sleep(0.1)
     response = generate_response(
-        og_query, results, sql_query, schema_str, verbose=verbose, graph=graph
+        og_query, results, sql_reasoning, verbose=verbose, graph=graph
     )
     model_name_match = MODEL_NAME_RE.match(sql_query)
     if model_name_match:
@@ -229,7 +229,7 @@ def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3
     sql_query = extract_first_code_block(response.content)
     logger.info(f"generated sql query:\n {sql_query}")
 
-    return sql_query
+    return response.content, sql_query
 
 
 def execute_sql_query(sql_query: str):
@@ -251,8 +251,7 @@ def execute_sql_query(sql_query: str):
 def generate_response(
     query: str,
     results: any,
-    sql_query: str,
-    schema_str: str,
+    sql_reasoning: str,
     llm: ChatOpenAI = chatgpt_o3_mini,
     verbose: bool = False,
     graph: bool = False,
@@ -264,8 +263,7 @@ def generate_response(
         {
             "query": query,
             "result": str(results),
-            "sql_query": sql_query,
-            "schema": schema_str,
+            "sql_reasoning": sql_reasoning,
         }
     )
 
