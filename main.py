@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from rich.logging import RichHandler
 
 from rag import query_rag
-from table import pdf_to_images, process_pdf
+from table import process_pdf
 
 load_dotenv()
 
@@ -37,7 +37,9 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://localhost",
+        "http://localhost:3001",
     ],  # In production, specify your frontend domain
     allow_credentials=True,
     allow_methods=["*"],

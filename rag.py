@@ -185,7 +185,7 @@ def find_k_relevant_tables(
     }
     if pdf_name is not None:
         logger.info(f"FILTER pinecone on pdf_name: {pdf_name}")
-        # query["filter"] = {"pdf_name": pdf_name}
+        query["filter"] = {"pdf_name": pdf_name}
 
     results = index.search_records(
         namespace="",
