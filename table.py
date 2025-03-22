@@ -1,6 +1,6 @@
 import io
-from logging import getLogger
 import os
+from logging import getLogger
 
 import fitz
 import numpy as np
@@ -8,8 +8,8 @@ import psycopg2
 import torch
 from anthropic import Anthropic
 from PIL import Image
-from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 from pinecone import Pinecone
+from transformers import DetrFeatureExtractor, TableTransformerForObjectDetection
 
 from constants import LOAD_MODEL
 from extractdata.dataextract import synchronous_batched_system
@@ -24,13 +24,14 @@ if LOAD_MODEL:
     )
 
 supabase_client = psycopg2.connect(
-        database=os.environ.get("PG_DBNAME"),
-        user=os.environ.get("PG_USER"),
-        password=os.environ.get("PG_PASSWORD"),
-        host=os.environ.get("PG_HOST"),
-        port=os.environ.get("PG_PORT"),
-        sslmode="require",
+    database=os.environ.get("PG_DBNAME"),
+    user=os.environ.get("PG_USER"),
+    password=os.environ.get("PG_PASSWORD"),
+    host=os.environ.get("PG_HOST"),
+    port=os.environ.get("PG_PORT"),
+    sslmode="require",
 )
+
 anthropic_client = Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY"),
 )
@@ -69,12 +70,14 @@ def pdf_to_images(pdf: bytes) -> list[Image]:
     return images
 
 
-def process_pdf(pdf: bytes):
+def process_pdf(pdf: bytes, filename: str, url: str):
     """
     Process a pdf
 
     ### Params
         pdf (bytes): the bytes of a pdf file
+        filename (str): name of the pdf
+        url (str): url of the pdf
     """
     global anthropic_client, detection_model, feature_extractor
 
@@ -90,13 +93,13 @@ def process_pdf(pdf: bytes):
     logger.debug("sent images with tables to pjr")
 
     table_responses = synchronous_batched_system(
-        image_datas=enumerate(images_with_tables),
-        pdf_name="test.pdf",
-        pdf_supabase_url="https://thinklude.ai",
+        image_datas=images_with_tables,
+        pdf_name=filename,
+        pdf_supabase_url=url,
         client=anthropic_client,
     )
+    logger.info("received table responses from sync batched system")
     save_to_supabase_and_pinecone(table_responses, supabase_client, pinecone_client)
-
 
 
 def calculate_white_percentage(image: Image, threshold: int = 245) -> float:
@@ -138,7 +141,7 @@ def filter_pages_with_tables(
     feature_extractor: DetrFeatureExtractor,
     images: list[Image],
     threshold: float = 0.7,
-) -> list[Image]:
+) -> list[tuple[int, Image]]:
     """
     returns a list of images that have tables in them
 
@@ -149,11 +152,12 @@ def filter_pages_with_tables(
         threshold (float, default = 0.7): threshold passed to `feature_extractor.post_process_object_detection`
 
     ### Returns
-        list[Image]: a list of `PIL.Image` that have tables in them
+        list[tuple[int, Image]]: a list of `page_no`, `PIL.Image` that have tables in them
     """
     with_tables = []
     for no, image in enumerate(images, 1):
         # convert to grayscale wihout losing the dimensions
+        image_original = image.copy()
         image = image.convert("L").convert("RGB")
         white_pct = calculate_white_percentage(image)
 
@@ -188,15 +192,14 @@ def filter_pages_with_tables(
                 ', '.join('%.2f' % i for i in result['scores'])
             }, white pct = {white_pct}"
         )
-        with_tables.append(image)
+        with_tables.append((no, image_original))
 
     return with_tables
 
 
 if __name__ == "__main__":
-    import asyncio
     from sys import argv
 
     with open(argv[1], "rb") as f:
         pdf = f.read()
-    asyncio.run(process_pdf(pdf))
+    process_pdf(pdf)

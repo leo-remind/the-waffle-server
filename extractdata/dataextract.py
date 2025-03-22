@@ -1,37 +1,59 @@
-from datetime import datetime
-from pathlib import Path
-import time
-import pandas as pd
-from dotenv import load_dotenv
-import anthropic
-import os
 import base64
-import psycopg2
-from rich import print
-import supabase
-from pathvalidate import sanitize_filepath
-from pinecone import Pinecone
-from PIL import Image
+import io
+import os
+import time
+from datetime import datetime
+from logging import getLogger
+from pathlib import Path
 
-from utils import (
+import anthropic
+import numpy as np
+import psycopg2
+from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+from anthropic.types.messages.batch_create_params import Request
+from dotenv import load_dotenv
+from PIL import Image
+from pinecone import Pinecone
+
+from .prompts import EXTRACT_PROMPT
+from .utils import (
     calculate_cost,
     convert_response_to_df,
-    get_20_random_string,
-    get_command_from,
     save_to_supabase_and_pinecone,
 )
 
-from prompts import EXTRACT_PROMPT
-
-from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-from anthropic.types.messages.batch_create_params import Request
-
-
+logger = getLogger(__file__)
 load_dotenv()
 
 
+def otsu_threshold(img: Image) -> Image:
+    img_array = np.array(img.convert("L"))
+    histogram, bin_edges = np.histogram(img_array, bins=256, range=(0, 256))
+    total_pixels = img_array.size
+    cumsum = np.cumsum(histogram)
+    cumulative_mean = np.cumsum(histogram * np.arange(256)) / (cumsum + 1e-10)
+    global_mean = np.sum(histogram * np.arange(256)) / total_pixels
+    between_class_variances = np.zeros(256)
+
+    for t in range(256):
+        w_bg = cumsum[t] / total_pixels
+        w_fg = 1 - w_bg
+
+        if w_bg > 0 and w_fg > 0:
+            mean_bg = cumulative_mean[t]
+            mean_fg = (global_mean * total_pixels - mean_bg * cumsum[t]) / (
+                total_pixels - cumsum[t]
+            )
+
+            between_class_variances[t] = w_bg * w_fg * (mean_bg - mean_fg) ** 2
+
+    threshold = np.argmax(between_class_variances)
+
+    return Image.fromarray(np.where(img_array > threshold, 255, 0).astype(np.uint8))
+
+
 def claude_powered_extraction(
-    image_data: bytes, client: anthropic.Anthropic
+    image_data: bytes, client: anthropic.Anthropic, file_path: str
 ) -> dict[str, any]:
     """
     Returns a data frame given image data bytes. It will use an LLM to extract the data.
@@ -150,28 +172,33 @@ def synchronous_batched_system(
     requests = []
     customId2Page = {}
 
+    logger.info(f"image_datas has {len(image_datas)} images")
     for ident, (page_no, image) in enumerate(image_datas):
+        bytes_stream = io.BytesIO()
         custom_id = f"IMAGE_REQ_{ident}_pg{page_no}"
-        image = image.tobytes()
-        requests.append(get_claude_powered_req(image, custom_id=custom_id))
+        # image = otsu_threshold(image)
+        image.save(bytes_stream, format="png")
+        bytes_stream.seek(0)
+        requests.append(
+            get_claude_powered_req(bytes_stream.read(), custom_id=custom_id)
+        )
         customId2Page[custom_id] = page_no
+        bytes_stream.close()
 
     message_batch = client.messages.batches.create(
         requests=requests,
     )
-
     batch_id = message_batch.id
-
-    print(f"Waiting for {batch_id} to complete...")
+    logger.info(f"Waiting for {batch_id} to complete...")
 
     while True:
         message_batch = client.messages.batches.retrieve(batch_id)
         if message_batch.processing_status == "ended":
-            print(
+            logger.info(
                 f"Time taken: {(message_batch.ended_at - message_batch.created_at).total_seconds()}s\n"
             )
             break
-        print(f"[{datetime.now()}] Batch {batch_id} is still processing...")
+        logger.info(f"[{datetime.now()}] Batch {batch_id} is still processing...")
         time.sleep(POLLING_RATE)
 
     final_results = []
@@ -180,16 +207,18 @@ def synchronous_batched_system(
     ):
         match result.result.type:
             case "succeeded":
-                print(f"Success! {result.custom_id}")
+                logger.info(f"Success! {result.custom_id}")
                 final_results.append(result)
+            case default:
+                logger.info(f"Not Success: {result.custom_id} {default}")
 
     converted_results = []
     if final_results:
         for result in final_results:
             try:
                 df_results = convert_response_to_df(result.result.message.content)
-            except:
-                print("Failed to convert response to DF")
+            except Exception as e:
+                logger.info(f"Failed to convert response to DF: {e}")
                 continue
 
             statsmeta = {}
@@ -201,7 +230,7 @@ def synchronous_batched_system(
                 model_name="claude-3-7-sonnet-20250219-batched",
             )
             statsmeta["result_id"] = result.custom_id
-            print(statsmeta)
+            logger.info(f"statsmeta: {statsmeta}")
 
             converted_results.append(
                 {
@@ -216,6 +245,7 @@ def synchronous_batched_system(
     else:
         raise ValueError("No results found")
 
+    logger.info("finished batch")
     return converted_results
 
 
@@ -225,64 +255,7 @@ def load_image_data(file_path):
     return image_data
 
 
-def wait_for_batched_to_complete(batch_id, pdf_name: str, client, POLLING_RATE=12):
-    print(f"Waiting for {batch_id} to complete...")
-    while True:
-        message_batch = client.messages.batches.retrieve(batch_id)
-        if message_batch.processing_status == "ended":
-            print(
-                f"Time taken: {(message_batch.ended_at - message_batch.created_at).total_seconds()}s\n"
-            )
-            break
-        print(f"[{datetime.now()}] Batch {batch_id} is still processing...")
-        time.sleep(POLLING_RATE)
-
-    final_results = []
-    for result in client.messages.batches.results(
-        batch_id,
-    ):
-        match result.result.type:
-            case "succeeded":
-                # print(f"Success! {result.custom_id}")
-                final_results.append(result)
-
-    converted_results = []
-    if final_results:
-        for result in final_results:
-            try:
-                df_results = convert_response_to_df(result.result.message.content)
-            except:
-                print("Failed to convert response to DF")
-                continue
-
-            statsmeta = {}
-            statsmeta["input_tokens_used"] = result.result.message.usage.input_tokens
-            statsmeta["output_tokens_used"] = result.result.message.usage.output_tokens
-            statsmeta["approx_cost"] = calculate_cost(
-                result.result.message.usage.input_tokens,
-                result.result.message.usage.output_tokens,
-                model_name="claude-3-7-sonnet-20250219-batched",
-            )
-            statsmeta["result_id"] = result.custom_id
-            print(statsmeta)
-
-            converted_results.append(
-                {
-                    "tables": df_results,
-                    "stats": statsmeta,
-                    "pdf_title": pdf_name,
-                    "page_number": result.result.message.content[0].page_number,
-                }
-            )
-    else:
-        raise ValueError("No results found")
-
-    return converted_results
-
-
 if __name__ == "__main__":
-
-
     supabase_client = psycopg2.connect(
         database=os.environ.get("PG_DBNAME"),
         user=os.environ.get("PG_USER"),
@@ -291,7 +264,7 @@ if __name__ == "__main__":
         port=os.environ.get("PG_PORT"),
         sslmode="require",
     )
-    print("Connected to Supabase")
+    logger.info("Connected to Supabase")
     anthropic_client = anthropic.Anthropic(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
     )
@@ -300,7 +273,7 @@ if __name__ == "__main__":
     file_paths = list(Path("pngs").glob("*.png"))
     # file_paths = ["pngs/notitle.png"]
 
-    print(f"Processing {len(file_paths)} images...")
+    logger.info(f"Processing {len(file_paths)} images...")
 
     image_datas = map(load_image_data, file_paths)
     image_datas = list(enumerate(image_datas))  # sample page numbers

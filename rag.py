@@ -3,9 +3,9 @@ import os
 from asyncio import sleep
 from typing import List
 
-from fastapi import WebSocket
 import psycopg2
 from dotenv import load_dotenv
+from fastapi import WebSocket
 from langchain_openai import ChatOpenAI
 from pinecone import Pinecone
 from rich.pretty import pretty_repr
@@ -45,34 +45,43 @@ chatgpt_o3_mini = ChatOpenAI(model="o3-mini")
 stream_fmt = lambda a: f"data: {a}\n\n"
 
 
-async def query_rag(websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False):
-    await websocket.send_text("Finding most relevant tables\n\n")
-    sleep(3)
+async def query_rag(
+    websocket: WebSocket, og_query: str, verbose: bool = False, graph: bool = False
+):
+    await websocket.send_text("stream: Finding most relevant tables\n\n")
     query = query_augmentation(og_query)
     tables = find_k_relevant_tables(query)
-    await websocket.send_text(f"Generating response from {len(tables)} relevant table/s\n\n")
+    await websocket.send_text(
+        f"stream: Generating response from {len(tables)} relevant table/s\n\n"
+    )
     await sleep(0.1)
     schemas = get_table_schemas(tables)
-    sql_query = generate_sql_query(query, schemas)
-    await websocket.send_text(f"Querying SQL Database with query\n\n")
+    schema_str = "\n\n".join(
+        [
+            f"-- table topic: {table['text']}\n{schema}"
+            for table, schema in zip(tables, schemas)
+        ]
+    )
+    sql_query = generate_sql_query(query, schema_str)
+    await websocket.send_text(f"stream: Querying SQL Database with query\n\n")
     await sleep(0.1)
     results = execute_sql_query(sql_query)
-    await websocket.send_text("Values collated, generating response ...")
+    await websocket.send_text("stream: Values collated, generating response ...")
     await sleep(0.1)
     response = generate_response(
-        og_query, results, sql_query, schemas, verbose=verbose, graph=graph
+        og_query, results, sql_query, schema_str, verbose=verbose, graph=graph
     )
-    await websocket.send_text(response)
+    await websocket.send_text(f"kill: {response}")
     await sleep(0.1)
     log.info(response)
 
 
-def find_k_relevant_tables(query: str, top_k: int = 2) -> List[str]:
+def find_k_relevant_tables(query: str, top_k: int = 3) -> List[str]:
     index = pc.Index("the-waffle")
 
     results = index.search_records(
         namespace="",
-        query={"inputs": {"text": query}, "top_k": top_k * 3},
+        query={"inputs": {"text": query}, "top_k": top_k * 4},
         fields=["text", "supabase_table_name"],
         rerank={"model": "bge-reranker-v2-m3", "top_n": top_k, "rank_fields": ["text"]},
     )
@@ -105,14 +114,15 @@ def get_table_schemas(tables: List):
             .execute()
         )
         schemas.append(response.data[0]["schema"])
+    log.info(schemas)
     return schemas
 
 
-def generate_sql_query(query: str, schemas: List, llm: ChatOpenAI = chatgpt_4o):
+def generate_sql_query(query: str, schema_str: str, llm: ChatOpenAI = chatgpt_o3_mini):
     chain = SQL_GENERATION_PROMPT | llm
     log.info(f"query: {query}")
 
-    response = chain.invoke({"query": query, "schema": "\n\n".join(schemas)})
+    response = chain.invoke({"query": query, "schema": schema_str})
     log.info(f"generated_response: {response.content}")
 
     return response.content
@@ -137,8 +147,8 @@ def generate_response(
     query: str,
     results: any,
     sql_query: str,
-    schemas: List[str],
-    llm: ChatOpenAI = chatgpt_4o,
+    schema_str: str,
+    llm: ChatOpenAI = chatgpt_o3_mini,
     verbose: bool = False,
     graph: bool = False,
 ):
@@ -150,7 +160,7 @@ def generate_response(
             "query": query,
             "result": str(results),
             "sql_query": sql_query,
-            "schema": "\n\n".join(schemas),
+            "schema": schema_str,
         }
     )
 
