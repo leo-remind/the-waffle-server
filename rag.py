@@ -143,7 +143,7 @@ async def query_rag(
             json.dumps({"isStreaming": True, "message": "Creating graph for your use-case"})
         )
 
-        graph_code  = graph_data(query, sql_query, schema_str)
+        graph_code  = graph_data(primary_table, query, sql_query, schema_str)
 
     await sleep(0.1)
     ##################################################################################################
@@ -336,10 +336,20 @@ def graph_data(
     schema: str,
     llm: ChatOpenAI = claude_3_7,
 ):
-    pass
+    data = get_table_data_as_csv(table) 
+    chain = GRAPH_GENERATION_PROMPT | llm
+
+    response = chain.invoke(
+        {"query": query, "data": data},
+    )
+
+    logger.info(response.content)
+    svg = extract_first_code_block(response.content)
+    print(svg)
+    return svg
     
 
-def get_table_data_as_csv(table_name, output_file="data.csv"):
+def get_table_data_as_csv(table_name):
     """
     Fetch data from a Supabase table and save it as CSV
     
@@ -347,23 +357,19 @@ def get_table_data_as_csv(table_name, output_file="data.csv"):
     table_name (str): Name of the table to fetch data from
     output_file (str): Name of the CSV file to save data to
     """
-    try:
-        # Fetch data from the table
-        response = supabase.table(table_name).select("*").execute()
-        
-        # Check if there's data
-        if not response.data:
-            print(f"No data found in table '{table_name}'")
-            return False
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(response.data)
-        
-        # Save to CSV
-        df.to_csv(output_file, index=False)
-        print(f"Data saved to {output_file}")
-        return True
+    import io
+    # Fetch data from the table
+    response = supabase.table(table_name).select("*").execute()
     
-    except Exception as e:
-        print(f"Error: {e}")
+    # Check if there's data
+    if not response.data:
+        print(f"No data found in table '{table_name}'")
         return False
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(response.data)
+    s = io.StringIO()
+    
+    # Save to CSV
+    df.to_csv(s, index=False)
+    return s.getvalue()
